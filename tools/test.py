@@ -1,8 +1,10 @@
 import os
-from src.verifier_detection import VerifierDetection
-from easydict import EasyDict as edict
 from pprint import pprint
+
 import yaml
+from easydict import EasyDict as edict
+
+from src.verifier_detection import VerifierDetection
 
 
 def main():
@@ -13,11 +15,14 @@ def main():
     v = VerifierDetection(cfg)
     docker_image_name = 'youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi'
 
-    for command in ['cat /img-man/training-template.yaml', 'cat /img-man/mining-template.yaml']:
-        result = v.run(docker_image_name=docker_image_name, command=command)
-        pprint(result, width=120)
-        template_config = yaml.safe_load(result['run']['result'])
-        pprint(template_config)
+    for task in ['training', 'mining', 'infer']:
+        verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
+        pprint(verify_result)
+
+        if verify_result[task]['error']:
+            break
+
+        break
 
 
 if __name__ == '__main__':
