@@ -1,39 +1,61 @@
 import logging
 import os
 import os.path as osp
+import shutil
+import unittest
 import warnings
+from pathlib import Path
 
 import docker
 import yaml
 from easydict import EasyDict as edict
 
 
-class Verifier(object):
+class Verifier(unittest.TestCase):
     def __init__(self, cfg: edict):
+        super().__init__()
+        warnings.simplefilter('ignore', ResourceWarning)
+
         self.supported_tasks = ['training', 'mining', 'infer']
         self.supported_algorithms = ['detection', 'segmentation', 'classification']
         # docker image config
         self.cfg = cfg
-        self.ymir_in_dir = os.path.abspath(cfg.get('in_dir', '/in'))
-        self.ymir_out_dir = os.path.abspath(cfg.get('out_dir', '/out'))
-        self.ymir_env_file = os.path.abspath(cfg.get('env_file', 'tests/data/env.yaml'))
-        user_train_config_file = os.path.abspath(cfg.get('user_train_config_file', 'tests/data/user-train-config.yaml'))
+        self.overwrite = True
+        self.class_names = cfg.class_names
+        self.ymir_in_dir = os.path.abspath(cfg.get('in_dir', './in'))
+        self.ymir_out_dir = os.path.abspath(cfg.get('out_dir', './out'))
+        self.ymir_pretrain_weights_dir = os.path.abspath(cfg.get('pretrain_weights_dir', './pretrain_weights_dir'))
 
-        if osp.exists(user_train_config_file):
-            with open(user_train_config_file, 'r') as fp:
-                self.user_train_config = yaml.safe_load(fp)
+        # copy pretrained weight files to /in/models in docker
+        shutil.copytree(self.ymir_pretrain_weights_dir, osp.join(self.ymir_in_dir, 'models'), dirs_exist_ok=True)
+
+        self.ymir_env_file = os.path.abspath(cfg.get('env_file', 'tests/data/env.yaml'))
+
+        self.user_config = {}
+        user_task_config_file = os.path.abspath(cfg.get('user_config_file', 'tests/data/user-config.yaml'))
+        if osp.exists(user_task_config_file):
+            with open(user_task_config_file, 'r') as fp:
+                self.user_config = yaml.safe_load(fp)
         else:
-            self.user_train_config = dict()
+            for task in self.supported_tasks:
+                self.user_config[task] = dict()
 
         # docker client
         self.client = docker.from_env()
 
-    def get_host_path(self, docker_file_path):
+    def get_host_path(self, docker_file_path: str):
         """
-        convert the output file path from docker to host
+        convert the input/output file path from docker to host
         """
-        docker_out_dir = '/out'
-        host_file_path = osp.join(self.ymir_out_dir, osp.relpath(docker_out_dir, docker_file_path))
+        if Path('/out') in Path(docker_file_path).parents:
+            docker_root_dir = '/out'
+            host_root_dir = self.ymir_out_dir
+        elif Path('/in') in Path(docker_file_path).parents:
+            docker_root_dir = '/in'
+            host_root_dir = self.ymir_in_dir
+        else:
+            raise Exception(f'unknown docker file path {docker_file_path}')
+        host_file_path = osp.join(host_root_dir, osp.relpath(docker_file_path, start=docker_root_dir))
 
         return host_file_path
 
@@ -45,7 +67,7 @@ class Verifier(object):
         else:
             return osp.isdir(host_path), host_path
 
-    def run(self, docker_image_name: str, command: str, tag: str = 'run', detach=False) -> dict:
+    def docker_run(self, docker_image_name: str, command: str, tag: str = 'run', detach=False) -> dict:
         """
         run docker image for target task
         """
@@ -119,6 +141,8 @@ class Verifier(object):
             return dict(image_exist=dict(error=f'unknown api error{e}'))
 
     def generate_yaml(self, template_config: dict, task: str) -> None:
+        self.assertIn(task, self.supported_tasks)
+
         in_config_file = osp.join(self.ymir_in_dir, 'config.yaml')
         env_config_file = osp.join(self.ymir_in_dir, 'env.yaml')
 
@@ -132,17 +156,16 @@ class Verifier(object):
             task_config = dict(gpu_id=gpu_id,
                                gpu_count=gpu_count,
                                task_id=task_id,
-                               class_names=['dog'],
+                               class_names=self.class_names,
                                pretrained_model_params=[])
 
             in_config = template_config.copy()
             in_config.update(task_config)
-            in_config.update(self.user_train_config)
         elif task == 'infer':
             task_config = dict(gpu_id=gpu_id,
                                gpu_count=gpu_count,
                                task_id=task_id,
-                               class_names=['dog'],
+                               class_names=self.class_names,
                                model_params_path=[])
 
             in_config = template_config.copy()
@@ -151,7 +174,7 @@ class Verifier(object):
             task_config = dict(gpu_id=gpu_id,
                                gpu_count=gpu_count,
                                task_id=task_id,
-                               class_names=['dog'],
+                               class_names=self.class_names,
                                model_params_path=[])
 
             in_config = template_config.copy()
@@ -159,11 +182,20 @@ class Verifier(object):
         else:
             raise Exception(f'unknown task name {task}')
 
+        if self.user_config[task]:
+            in_config.update(self.user_config[task])
+            logging.info(f'modify training template config with {self.user_config[task]}')
+
         with open(in_config_file, 'w') as fp:
             yaml.dump(in_config, fp)
 
+        ### generate env.yaml
         if osp.exists(env_config_file):
-            warnings.warn(f'exists {env_config_file}, no needs to generate')
+            if self.overwrite:
+                warnings.warn(f'exists {env_config_file}, overwrite them')
+            else:
+                warnings.warn(f'exists {env_config_file}, skip generate them')
+                return None
 
         with open(self.ymir_env_file, 'r') as fr:
             env_config = yaml.safe_load(fr)
@@ -183,10 +215,6 @@ class Verifier(object):
                                input=dict(training_index_file='/in/train-index.tsv',
                                           val_index_file='/in/val-index.tsv',
                                           candidate_index_file=''))
-
-            if self.user_train_config:
-                task_config.update(self.user_train_config)
-                logging.info(f'modify training template config with {self.user_train_config}')
 
         elif task == 'infer':
             mining_index_file = osp.join(self.ymir_in_dir, 'candidate-index.tsv')
@@ -211,6 +239,8 @@ class Verifier(object):
                                input=dict(training_index_file='',
                                           val_index_file='',
                                           candidate_index_file='/in/candidate-index.tsv'))
+        else:
+            raise Exception(f'unknown task {task}')
 
         env_config.update(task_config)
         with open(env_config_file, 'w') as fw:
