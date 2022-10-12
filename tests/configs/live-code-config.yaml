@@ -1,0 +1,12 @@
+training:
+  epochs: 3
+  clone_dir: '/clone'
+  git_url: 'http://192.168.70.8/wangjiaxin/ymir-executor.git'
+  git_branch: 'ymir-remote-v7.0'
+  code_config: ''
+mining:
+  conf: 0.2
+  model_params_path: [best.pt]
+infer:
+  conf: 0.2
+  model_params_path: [best.pt]

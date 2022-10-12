@@ -14,6 +14,8 @@ class TestTraining(unittest.TestCase):
         cfg.in_dir = 'tests/data/voc_dog/in'
         cfg.out_dir = 'tests/data/voc_dog/out'
         cfg.pretrain_weights_dir = 'tests/pretrain_weights_dir'
+        cfg.env_config = 'tests/data/env.yaml'
+        cfg.user_config = 'tests/data/user-config.yaml'
         cfg.class_names = ['dog']
 
         v = VerifierDetection(cfg)

@@ -1,3 +1,4 @@
+import glob
 import logging
 import os
 import os.path as osp
@@ -22,17 +23,33 @@ class Verifier(unittest.TestCase):
         self.cfg = cfg
         self.overwrite = True
         self.class_names = cfg.class_names
-        self.ymir_in_dir = os.path.abspath(cfg.get('in_dir', './in'))
-        self.ymir_out_dir = os.path.abspath(cfg.get('out_dir', './out'))
-        self.ymir_pretrain_weights_dir = os.path.abspath(cfg.get('pretrain_weights_dir', './pretrain_weights_dir'))
+        # os.path.abspath('') = '.'
+        in_dir = cfg.get('in_dir', './in')
+        assert osp.isdir(in_dir)
+        self.ymir_in_dir = os.path.abspath(in_dir)
 
-        # copy pretrained weight files to /in/models in docker
-        shutil.copytree(self.ymir_pretrain_weights_dir, osp.join(self.ymir_in_dir, 'models'), dirs_exist_ok=True)
+        out_dir = cfg.get('out_dir', './out')
+        assert osp.isdir(out_dir)
+        self.ymir_out_dir = os.path.abspath(out_dir)
 
-        self.ymir_env_file = os.path.abspath(cfg.get('env_file', 'tests/data/env.yaml'))
+        pretrain_weights_dir = cfg.get('pretrain_weights_dir', './pretrain_weights_dir')
+        if osp.isdir(pretrain_weights_dir):
+            self.ymir_pretrain_weights_dir = os.path.abspath(pretrain_weights_dir)
+            # copy pretrained weight files to /in/models in docker
+            copy_files = glob.glob(osp.join(self.ymir_pretrain_weights_dir, '*'), recursive=False)
+            for f in copy_files:
+                if osp.isfile(f):
+                    shutil.copyfile(f, osp.join(self.ymir_in_dir, 'models'))
+
+        self.ymir_env_file = os.path.abspath(cfg.get('env_file', './env.yaml'))
+        if osp.exists(self.ymir_env_file):
+            with open(self.ymir_env_file, 'r') as fp:
+                self.ymir_env = yaml.safe_load(fp)
+        else:
+            self.ymir_env = self.get_default_env()
 
         self.user_config = {}
-        user_task_config_file = os.path.abspath(cfg.get('user_config_file', 'tests/data/user-config.yaml'))
+        user_task_config_file = os.path.abspath(cfg.get('user_config_file', './user-config.yaml'))
         if osp.exists(user_task_config_file):
             with open(user_task_config_file, 'r') as fp:
                 self.user_config = yaml.safe_load(fp)
@@ -182,6 +199,7 @@ class Verifier(unittest.TestCase):
         else:
             raise Exception(f'unknown task name {task}')
 
+        ### apply user define config
         if self.user_config[task]:
             in_config.update(self.user_config[task])
             logging.info(f'modify training template config with {self.user_config[task]}')
@@ -196,9 +214,8 @@ class Verifier(unittest.TestCase):
             else:
                 warnings.warn(f'exists {env_config_file}, skip generate them')
                 return None
-
-        with open(self.ymir_env_file, 'r') as fr:
-            env_config = yaml.safe_load(fr)
+                
+        env_config = self.ymir_env.copy()
 
         if task == 'training':
             training_index_file = osp.join(self.ymir_in_dir, 'train-index.tsv')
@@ -245,3 +262,55 @@ class Verifier(unittest.TestCase):
         env_config.update(task_config)
         with open(env_config_file, 'w') as fw:
             yaml.dump(env_config, fw)
+
+    def get_default_env(self):
+        """
+        input:
+            annotations_dir: /in/annotations
+            assets_dir: /in/assets
+            candidate_index_file: /in/candidate-index.tsv
+            config_file: /in/config.yaml
+            models_dir: /in/models
+            root_dir: /in
+            training_index_file: /in/train-index.tsv
+            val_index_file: /in/val-index.tsv
+        output:
+            infer_result_file: /out/infer-result.json
+            mining_result_file: /out/result.tsv
+            models_dir: /out/models
+            monitor_file: /out/monitor.txt
+            root_dir: /out
+            tensorboard_dir: /out/tensorboard
+            training_result_file: /out/models/result.yaml
+        run_infer: false
+        run_mining: false
+        run_training: true
+        task_id: t00000020000029d077c1662111056
+        """
+        env = edict()
+        env.input = edict()
+        env.output = edict()
+
+        env.input.annotations_dir = '/in/annotations'
+        env.input.assets_dir = '/in/assets'
+        env.input.candidate_index_file = '/in/candidate-index.tsv'
+        env.input.config_file = '/in/config.yaml'
+        env.input.models_dir = 'in/models'
+        env.input.root_dir = '/in'
+        env.input.training_index_file = '/in/train-index.tsv'
+        env.input.val_index_file = '/in/val-index.tsv'
+
+        env.output.infer_result_file = '/out/infer-result.json'
+        env.output.mining_result_file = '/out/result.tsv'
+        env.output.models_dir = '/out/models'
+        env.output.monitor_file = '/out/monitor.txt'
+        env.output.root_dir = '/out'
+        env.output.tensorboard_dir = '/out/tensorboard'
+        env.output.training_result_file = '/out/models/result.yaml'
+
+        env.run_infer = False
+        env.run_mining = False
+        env.run_training = True
+        env.task_id = 't00000020000029d077c1662111056'
+        return env
+
