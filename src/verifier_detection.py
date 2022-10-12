@@ -11,6 +11,7 @@ from .verifier import Verifier
 
 
 class VerifierDetection(Verifier):
+
     def __init__(self, cfg: edict):
         super().__init__(cfg)
         self.supported_algorithms = ['detection']
@@ -84,6 +85,8 @@ class VerifierDetection(Verifier):
         valid, task_result_file = self.verify_docker_path(docker_task_result_file, is_file=True)
         self.assertTrue(valid, msg=f'cannot find {docker_task_result_file} in docker, {task_result_file} in host')
 
+        self.verify_training_result_file(task_result_file)
+
         # check model save directory and model weight file
         docker_model_out_dir: str = ymir_env['output']['models_dir']
         valid, model_out_dir = self.verify_docker_path(docker_model_out_dir, is_file=False)
@@ -118,6 +121,48 @@ class VerifierDetection(Verifier):
         # check process monitor file
         docker_monitor_file = ymir_env['output']['monitor_file']
         self.verify_monitor_file(docker_monitor_file=docker_monitor_file)
+
+    def verify_training_result_file(self, training_result_file) -> None:
+        """ check the content of training result file
+        1. check map
+        2. check saved file
+        """
+        with open(training_result_file, 'r') as fp:
+            result = yaml.safe_load(fp)
+
+        if 'map' in result:
+            self.assertTrue(isinstance(result['map'], (float, int)) or result['map'].isnumeric(),
+                            msg=f'map in training result file {training_result_file} is not number: {result["map"]}')
+
+        if 'model' in result:
+            self.assertTrue(isinstance(result['model'], List),
+                            msg=f'model in training result file {training_result_file} is not list: {result["model"]}')
+            for f in result['model']:
+                self.assertTrue(
+                    osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
+                    msg=
+                    f'file {f} in training result file {training_result_file} is not valid or relative to {self.ymir_out_dir}/models'
+                )
+
+        if 'model_stages' in result:
+            self.assertTrue(isinstance(result['model_stages'], dict),
+                            msg='model_stages in {training_result_file} must be dict')
+
+            for stage_name, stage in result['model_stages'].items():
+                for key in ['stage_name', 'files', 'timestamp', 'mAP']:
+                    self.assertTrue(key in stage,
+                                    msg=f'{key} not in model_stages[{stage_name}] in {training_result_file}')
+
+                self.assertIsInstance(stage['files'],
+                                      list,
+                                      msg=f'files in model_stages[{stage_name}] in {training_result_file} not list')
+
+                for f in stage['files']:
+                    self.assertTrue(
+                        osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
+                        msg=
+                        f'file {f} in training result file {training_result_file} is not valid or relative to {self.ymir_out_dir}/models'
+                    )
 
     def verify_monitor_file(self, docker_monitor_file: str) -> None:
         """ check the format of process monitor file
@@ -204,9 +249,7 @@ class VerifierDetection(Verifier):
         with open(candidate_index_file, 'r') as fp:
             lines = fp.readlines()
 
-        self.assertEqual(len(lines),
-                         len(mining_image_list),
-                         msg='mining result image number != candidate image number')
+        self.assertEqual(len(lines), len(mining_image_list), msg='mining result image number != candidate image number')
         # check process monitor file
         docker_monitor_file = ymir_env['output']['monitor_file']
         self.verify_monitor_file(docker_monitor_file=docker_monitor_file)
