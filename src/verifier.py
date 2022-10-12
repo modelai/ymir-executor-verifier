@@ -13,6 +13,7 @@ from easydict import EasyDict as edict
 
 
 class Verifier(unittest.TestCase):
+
     def __init__(self, cfg: edict):
         super().__init__()
         warnings.simplefilter('ignore', ResourceWarning)
@@ -34,28 +35,29 @@ class Verifier(unittest.TestCase):
 
         pretrain_weights_dir = cfg.get('pretrain_weights_dir', './pretrain_weights_dir')
         if osp.isdir(pretrain_weights_dir):
-            self.ymir_pretrain_weights_dir = os.path.abspath(pretrain_weights_dir)
             # copy pretrained weight files to /in/models in docker
-            copy_files = glob.glob(osp.join(self.ymir_pretrain_weights_dir, '*'), recursive=False)
+            copy_files = glob.glob(osp.join(pretrain_weights_dir, '*'), recursive=False)
             for f in copy_files:
                 if osp.isfile(f):
                     shutil.copyfile(f, osp.join(self.ymir_in_dir, 'models'))
 
-        self.ymir_env_file = os.path.abspath(cfg.get('env_file', './env.yaml'))
+        # ymir env config, affect /in/env.yaml
+        self.ymir_env_file = cfg.get('env_config_file', './env.yaml')
         if osp.exists(self.ymir_env_file):
             with open(self.ymir_env_file, 'r') as fp:
                 self.ymir_env = yaml.safe_load(fp)
         else:
             self.ymir_env = self.get_default_env()
 
-        self.user_config = {}
-        user_task_config_file = os.path.abspath(cfg.get('user_config_file', './user-config.yaml'))
-        if osp.exists(user_task_config_file):
-            with open(user_task_config_file, 'r') as fp:
-                self.user_config = yaml.safe_load(fp)
+        # hyper-parameter config, affect /in/config.yaml
+        self.param_config = {}
+        param_config_file = cfg.get('param_config_file', './param-config.yaml')
+        if osp.exists(param_config_file):
+            with open(param_config_file, 'r') as fp:
+                self.param_config = yaml.safe_load(fp)
         else:
             for task in self.supported_tasks:
-                self.user_config[task] = dict()
+                self.param_config[task] = dict()
 
         # docker client
         self.client = docker.from_env()
@@ -103,7 +105,6 @@ class Verifier(unittest.TestCase):
             verify_result['cmd'] = dict(warn=f'docker image cmd is not "bash /usr/bin/start.sh" but {cmd}')
 
         try:
-            print('this task may take long time, view `docker ps` and `docker logs -f xxx` for process')
             if detach:
                 container = self.client.containers.run(
                     image=target_image,
@@ -124,6 +125,7 @@ class Verifier(unittest.TestCase):
                 verify_result[tag] = dict(error='', result='')
                 container.wait()
             else:
+                print('this task may take long time, view `docker ps` and `docker logs -f xxx` for process')
                 run_result = self.client.containers.run(
                     image=target_image,
                     command=command,
@@ -200,9 +202,9 @@ class Verifier(unittest.TestCase):
             raise Exception(f'unknown task name {task}')
 
         ### apply user define config
-        if self.user_config[task]:
-            in_config.update(self.user_config[task])
-            logging.info(f'modify training template config with {self.user_config[task]}')
+        if self.param_config[task]:
+            in_config.update(self.param_config[task])
+            logging.info(f'modify training template config with {self.param_config[task]}')
 
         with open(in_config_file, 'w') as fp:
             yaml.dump(in_config, fp)
@@ -214,7 +216,7 @@ class Verifier(unittest.TestCase):
             else:
                 warnings.warn(f'exists {env_config_file}, skip generate them')
                 return None
-                
+
         env_config = self.ymir_env.copy()
 
         if task == 'training':
@@ -263,7 +265,7 @@ class Verifier(unittest.TestCase):
         with open(env_config_file, 'w') as fw:
             yaml.dump(env_config, fw)
 
-    def get_default_env(self):
+    def get_default_env(self) -> dict:
         """
         input:
             annotations_dir: /in/annotations
@@ -312,5 +314,8 @@ class Verifier(unittest.TestCase):
         env.run_mining = False
         env.run_training = True
         env.task_id = 't00000020000029d077c1662111056'
-        return env
 
+        pydict = dict(env)
+        pydict['input'] = dict(env.input)
+        pydict['output'] = dict(env.output)
+        return pydict

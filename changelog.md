@@ -1,0 +1,1 @@
+- 2022/10/12: first release, support basic training test
