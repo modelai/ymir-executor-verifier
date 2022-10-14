@@ -8,8 +8,10 @@ check docker image for ymir
 
 ## How to use
 
-1. download dataset
+1. clone code and download dataset
 ```
+git clone https://github.com/modelai/ymir-executor-verifier.git
+cd ymir-executor-verifier
 sudo apt install wget unzip
 bash start.sh
 ```
@@ -41,6 +43,17 @@ echo "youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi" > ymir_docker_images.
 python3 tools/test_training.py
 ```
 
+4. use with your own config
+
+view `tests/configs/all-in-one.yaml` for example
+
+```
+pip install "git+https://github.com/modelai/ymir-executor-verifier.git"
+
+ymir-verifier --help
+ymir-verifier --config tests/configs/all-in-one.yaml
+```
+
 ## training
 - training-template.yaml
 ```
@@ -61,10 +74,8 @@ export_format: ark:raw
 - infer-template.yaml
 - monitor process
 - result file
-- check bad image
 
 ## mining
-- check bad image
 - mining-template.yaml
 - monitor process
 - result file
