@@ -6,7 +6,6 @@ import shutil
 import unittest
 import warnings
 from pathlib import Path
-
 import docker
 import yaml
 from easydict import EasyDict as edict
@@ -34,6 +33,7 @@ class Verifier(unittest.TestCase):
         os.makedirs(out_dir, exist_ok=True)
         self.ymir_out_dir = os.path.abspath(out_dir)
 
+        self.pretrain_files = []
         pretrain_weights_dir = cfg.get('pretrain_weights_dir', './pretrain_weights_dir')
         if osp.isdir(pretrain_weights_dir):
             # copy pretrained weight files to /in/models in docker
@@ -41,7 +41,8 @@ class Verifier(unittest.TestCase):
             os.makedirs(osp.join(self.ymir_in_dir, 'models'), exist_ok=True)
             for f in copy_files:
                 if osp.isfile(f):
-                    shutil.copyfile(f, osp.join(self.ymir_in_dir, 'models'))
+                    shutil.copy(f, osp.join(self.ymir_in_dir, 'models'))
+                    self.pretrain_files.append(osp.basename(f))
 
         # ymir env config, affect /in/env.yaml
         self.ymir_env_file = cfg.get('env_config_file', './env.yaml')
@@ -60,6 +61,18 @@ class Verifier(unittest.TestCase):
         else:
             for task in self.supported_tasks:
                 self.test_config[task] = dict()
+
+        # note this will overwrite custom value
+        if self.pretrain_files:
+            for task in self.supported_tasks:
+                if task == 'training':
+                    if 'pretrained_model_params' in self.test_config[task]:
+                        warnings.warn(f'overwrite test config {task} pretrained_model_params')
+                    self.test_config[task]['pretrained_model_params'] = self.pretrain_files
+                else:
+                    if 'model_params_path' in self.test_config[task]:
+                        warnings.warn(f'overwrite test config {task} model_params_path')
+                    self.test_config[task]['model_params_path'] = self.pretrain_files
 
         # docker client
         self.client = docker.from_env()
@@ -124,7 +137,7 @@ class Verifier(unittest.TestCase):
                 stream = container.logs(stream=True, follow=True)
                 for line in stream:
                     print(line.decode('utf-8'))
-                verify_result[tag] = dict(error='', result='')
+                verify_result[tag] = dict(error='', result='', docker=docker_image_name, command=command)
                 container.wait()
             else:
                 print('this task may take long time, view `docker ps` and `docker logs -f xxx` for process')
@@ -139,7 +152,7 @@ class Verifier(unittest.TestCase):
                     detach=detach,
                     stderr=True,
                     stdout=True)
-                verify_result[tag] = dict(error='', result=run_result.decode('utf-8'))
+                verify_result[tag] = dict(error='', result=run_result.decode('utf-8'), docker=docker_image_name, command=command)
         except docker.errors.ContainerError as e:
             verify_result[tag] = dict(error=f'container error {e}')
         except docker.errors.APIError as e:

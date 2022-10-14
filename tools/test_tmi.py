@@ -22,11 +22,14 @@ class TestTMI(unittest.TestCase):
         cfg.class_names = ['dog']
 
         for task in ['training', 'mining', 'infer']:
+            if task == 'training':
+                continue
+
             cfg.out_dir = osp.join(root_out_dir, task)
 
             # use training model weight for infer and mining
             if task in ['mining', 'infer']:
-                cfg.pretrain_weights_dir = osp.join(root_out_dir, 'training', 'out', 'models')
+                cfg.pretrain_weights_dir = osp.join(root_out_dir, 'training', 'models')
 
             v = VerifierDetection(cfg)
             docker_image_name = v.test_config['image']
