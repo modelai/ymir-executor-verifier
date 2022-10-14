@@ -1,8 +1,0 @@
-training:
-  epochs: 1
-mining:
-  conf: 0.2
-  model_params_path: [best.pt]
-infer:
-  conf: 0.2
-  model_params_path: [best.pt]

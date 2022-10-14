@@ -38,7 +38,7 @@ use `youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi` as example
 docker pull youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi
 
 echo "youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi" > ymir_docker_images.txt
-python3 tools/test.py
+python3 tools/test_training.py
 ```
 
 ## training

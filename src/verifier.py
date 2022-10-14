@@ -30,13 +30,15 @@ class Verifier(unittest.TestCase):
         self.ymir_in_dir = os.path.abspath(in_dir)
 
         out_dir = cfg.get('out_dir', './out')
-        assert osp.isdir(out_dir)
+        assert out_dir
+        os.makedirs(out_dir, exist_ok=True)
         self.ymir_out_dir = os.path.abspath(out_dir)
 
         pretrain_weights_dir = cfg.get('pretrain_weights_dir', './pretrain_weights_dir')
         if osp.isdir(pretrain_weights_dir):
             # copy pretrained weight files to /in/models in docker
             copy_files = glob.glob(osp.join(pretrain_weights_dir, '*'), recursive=False)
+            os.makedirs(osp.join(self.ymir_in_dir, 'models'), exist_ok=True)
             for f in copy_files:
                 if osp.isfile(f):
                     shutil.copyfile(f, osp.join(self.ymir_in_dir, 'models'))
@@ -50,14 +52,14 @@ class Verifier(unittest.TestCase):
             self.ymir_env = self.get_default_env()
 
         # hyper-parameter config, affect /in/config.yaml
-        self.param_config = {}
-        param_config_file = cfg.get('param_config_file', './param-config.yaml')
-        if osp.exists(param_config_file):
-            with open(param_config_file, 'r') as fp:
-                self.param_config = yaml.safe_load(fp)
+        self.test_config = {}
+        test_config_file = cfg.get('param_config_file', './test-config.yaml')
+        if osp.exists(test_config_file):
+            with open(test_config_file, 'r') as fp:
+                self.test_config = yaml.safe_load(fp)
         else:
             for task in self.supported_tasks:
-                self.param_config[task] = dict()
+                self.test_config[task] = dict()
 
         # docker client
         self.client = docker.from_env()
@@ -202,9 +204,9 @@ class Verifier(unittest.TestCase):
             raise Exception(f'unknown task name {task}')
 
         ### apply user define config
-        if self.param_config[task]:
-            in_config.update(self.param_config[task])
-            logging.info(f'modify training template config with {self.param_config[task]}')
+        if self.test_config[task]:
+            in_config.update(self.test_config[task])
+            logging.info(f'modify training template config with {self.test_config[task]}')
 
         with open(in_config_file, 'w') as fp:
             yaml.dump(in_config, fp)

@@ -16,7 +16,7 @@ class TestTraining(unittest.TestCase):
         root_out_dir = 'tests/data/voc_dog/out'
         cfg.pretrain_weights_dir = 'tests/pretrain_weights_dir'
         cfg.env_config_file = 'tests/configs/env.yaml'
-        cfg.param_config_file = 'tests/configs/param-config.yaml'
+        cfg.param_config_file = 'tests/configs/test-config.yaml'
         cfg.class_names = ['dog']
 
         docker_image_name = 'youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi'
@@ -31,7 +31,7 @@ class TestTraining(unittest.TestCase):
                     cfg.out_dir = os.path.join(root_out_dir, f'{key}_{idx}')
                     os.makedirs(cfg.out_dir, exist_ok=True)
                     v = VerifierDetection(cfg)
-                    v.param_config[task][key] = value
+                    v.test_config[task][key] = value
                     verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
                     pprint(verify_result)
 

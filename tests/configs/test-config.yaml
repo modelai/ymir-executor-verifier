@@ -1,0 +1,7 @@
+training:
+  epochs: 10
+mining:
+  conf: 0.2
+infer:
+  conf: 0.2
+image: youdaoyzbx/ymir-executor:ymir1.3.0-nanodet-cu111-tmi
