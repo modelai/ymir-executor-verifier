@@ -1,8 +1,11 @@
 docker_image: 'youdaoyzbx/ymir-executor:ymir1.3.0-yolov5-cu111-tmi'
 in_dir: 'tests/data/voc_dog/in'
+# the root directory for all tasks.
 out_dir: 'tests/data/voc_dog/out'
 pretrain_weights_dir: 'tests/pretrain_weights_dir'
 class_names: ['dog']
+# training first to generate weight file for mining and infer
+tasks: ['training', 'mining', 'infer']
 # use env_config_file or ymir_env
 # env_config_file: 'tests/configs/env.yaml'
 env_config:

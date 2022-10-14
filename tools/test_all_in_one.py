@@ -21,7 +21,7 @@ class TestTMI(unittest.TestCase):
         docker_image_name = cfg.docker_image
 
         root_out_dir = cfg.out_dir
-        for task in ['training', 'mining', 'infer']:
+        for task in cfg.tasks:
             cfg.out_dir = osp.join(root_out_dir, task)
 
             # use training model weight for infer and mining
