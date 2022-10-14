@@ -31,7 +31,7 @@ class TestTraining(unittest.TestCase):
                     cfg.out_dir = os.path.join(root_out_dir, f'{key}_{idx}')
                     os.makedirs(cfg.out_dir, exist_ok=True)
                     v = VerifierDetection(cfg)
-                    v.test_config[task][key] = value
+                    v.param_config[task][key] = value
                     verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
                     pprint(verify_result)
 

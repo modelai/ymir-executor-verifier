@@ -13,9 +13,9 @@ echo "generate candidate-index.tsv for mining and infer"
 cd voc_dog/in && cat val_index.tsv | awk '{print $1}' > candidate-index.tsv
 
 echo "to test you docker image training"
-echo "1. modify ./ymir_docker_images.txt"
+echo "1. modify ./ymir_docker_images.txt and tools/test_training.py"
 echo "2. run: python3 tools/test_training.py"
 
 echo "to test training/mining/infer"
-echo "1. modify ./tests/data/configs/test-config.yaml"
+echo "1. modify ./tests/data/configs/test-config.yaml and tools/test_tmi.py"
 echo "2. run: python3 tools/test_tmi.py"

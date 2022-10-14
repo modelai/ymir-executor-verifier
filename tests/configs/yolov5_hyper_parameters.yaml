@@ -1,3 +1,4 @@
+# for batch test
 batch_size_per_gpu: [1, 2]
 num_workers_per_gpu: [0]
 model: ['yolov5n', 'yolov5m']

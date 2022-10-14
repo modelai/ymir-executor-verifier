@@ -12,17 +12,15 @@ class TestTMI(unittest.TestCase):
     """
     test Training, Mining and Infer
     """
+
     def test_main(self):
-        cfg = edict()
-        cfg.in_dir = 'tests/data/voc_dog/in'
-        root_out_dir = 'tests/data/voc_dog/out'
-        cfg.pretrain_weights_dir = 'tests/pretrain_weights_dir'
-        cfg.env_config_file = 'tests/configs/env.yaml'
-        cfg.param_config_file = 'tests/configs/test-config.yaml'
-        cfg.class_names = ['dog']
+        config_file = 'tests/configs/all-in-one.yaml'
+        with open(config_file, 'r') as fp:
+            cfg = edict(yaml.safe_load(fp))
 
-        docker_image_name = 'youdaoyzbx/ymir-executor:ymir1.3.0-nanodet-cu111-tmi'
+        docker_image_name = cfg.docker_image
 
+        root_out_dir = cfg.out_dir
         for task in ['training', 'mining', 'infer']:
             cfg.out_dir = osp.join(root_out_dir, task)
 

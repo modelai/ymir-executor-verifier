@@ -78,7 +78,7 @@ class VerifierDetection(Verifier):
         2. save tensorboard file to /out/tensorboard_dir
         3. monitor process
         """
-        ymir_env = self.ymir_env
+        ymir_env = self.env_config
 
         # check training result file
         docker_task_result_file = ymir_env['output']['training_result_file']
@@ -176,7 +176,7 @@ class VerifierDetection(Verifier):
         1. verify infer output result (json format)
         2. check monitor file
         """
-        ymir_env = self.ymir_env
+        ymir_env = self.env_config
 
         # check infer result file
         docker_task_result_file = ymir_env['output']['infer_result_file']
@@ -224,7 +224,7 @@ class VerifierDetection(Verifier):
         1. verify mining output result
         2. check monitor file
         """
-        ymir_env = self.ymir_env
+        ymir_env = self.env_config
 
         # check infer result file
         docker_task_result_file = ymir_env['output']['mining_result_file']

@@ -1,2 +1,2 @@
 - 2022/10/12: first release, support basic training test
-- 2022/10/14: support mining and infer test
+- 2022/10/14: support mining and infer test and all-in-one config

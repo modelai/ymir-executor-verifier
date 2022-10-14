@@ -1,0 +1,26 @@
+[project]
+name = "ymir-executor-verifier"
+version = "0.0.1"
+authors = [
+  { name="youdaoyzbx", email="youdaoyzbx@163.com" },
+]
+description = "check ymir executor for training/mining/infer"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/modelai/ymir-executor-verifier"
+"Bug Tracker" = "https://github.com/modelai/ymir-executor-verifier/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# view https://setuptools.pypa.io/en/latest/userguide/entry_point.html
+[project.scripts]
+ymir-verifier = "src.cmd:main()"

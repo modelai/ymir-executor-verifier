@@ -11,6 +11,13 @@ import yaml
 from easydict import EasyDict as edict
 
 
+def todict(cfg):
+    if isinstance(cfg, dict):
+        return {key: todict(value) for key, value in cfg.items()}
+    else:
+        return cfg
+
+
 class Verifier(unittest.TestCase):
 
     def __init__(self, cfg: edict):
@@ -45,34 +52,43 @@ class Verifier(unittest.TestCase):
                     self.pretrain_files.append(osp.basename(f))
 
         # ymir env config, affect /in/env.yaml
-        self.ymir_env_file = cfg.get('env_config_file', './env.yaml')
-        if osp.exists(self.ymir_env_file):
-            with open(self.ymir_env_file, 'r') as fp:
-                self.ymir_env = yaml.safe_load(fp)
+        if cfg.get('env_config'):
+            # support for all-in-one.yaml
+            self.env_config = todict(cfg.env_config)
         else:
-            self.ymir_env = self.get_default_env()
+            self.env_config_file = cfg.get('env_config_file', './env.yaml')
+            if osp.exists(self.env_config_file):
+                with open(self.env_config_file, 'r') as fp:
+                    self.env_config = yaml.safe_load(fp)
+            else:
+                self.env_config = self.get_default_env()
 
         # hyper-parameter config, affect /in/config.yaml
-        self.test_config = {}
-        test_config_file = cfg.get('param_config_file', './test-config.yaml')
-        if osp.exists(test_config_file):
-            with open(test_config_file, 'r') as fp:
-                self.test_config = yaml.safe_load(fp)
+        if cfg.get('param_config'):
+            # support for all-in-one.yaml
+            self.param_config = todict(cfg.param_config)
         else:
-            for task in self.supported_tasks:
-                self.test_config[task] = dict()
+            self.param_config = {}
+            test_config_file = cfg.get('param_config_file', './test-config.yaml')
+            if osp.exists(test_config_file):
+                with open(test_config_file, 'r') as fp:
+                    self.param_config = yaml.safe_load(fp)
+            else:
+                for task in self.supported_tasks:
+                    self.param_config[task] = dict()
 
+        # set pretrain_files to /in/config.yaml
         # note this will overwrite custom value
         if self.pretrain_files:
             for task in self.supported_tasks:
                 if task == 'training':
-                    if 'pretrained_model_params' in self.test_config[task]:
+                    if 'pretrained_model_params' in self.param_config[task]:
                         warnings.warn(f'overwrite test config {task} pretrained_model_params')
-                    self.test_config[task]['pretrained_model_params'] = self.pretrain_files
+                    self.param_config[task]['pretrained_model_params'] = self.pretrain_files
                 else:
-                    if 'model_params_path' in self.test_config[task]:
+                    if 'model_params_path' in self.param_config[task]:
                         warnings.warn(f'overwrite test config {task} model_params_path')
-                    self.test_config[task]['model_params_path'] = self.pretrain_files
+                    self.param_config[task]['model_params_path'] = self.pretrain_files
 
         # docker client
         self.client = docker.from_env()
@@ -220,9 +236,9 @@ class Verifier(unittest.TestCase):
             raise Exception(f'unknown task name {task}')
 
         ### apply user define config
-        if self.test_config[task]:
-            in_config.update(self.test_config[task])
-            logging.info(f'modify training template config with {self.test_config[task]}')
+        if self.param_config[task]:
+            in_config.update(self.param_config[task])
+            logging.info(f'modify training template config with {self.param_config[task]}')
 
         with open(in_config_file, 'w') as fp:
             yaml.dump(in_config, fp)
@@ -235,7 +251,7 @@ class Verifier(unittest.TestCase):
                 warnings.warn(f'exists {env_config_file}, skip generate them')
                 return None
 
-        env_config = self.ymir_env.copy()
+        env_config = self.env_config.copy()
 
         if task == 'training':
             training_index_file = osp.join(self.ymir_in_dir, 'train-index.tsv')
@@ -333,7 +349,4 @@ class Verifier(unittest.TestCase):
         env.run_training = True
         env.task_id = 't00000020000029d077c1662111056'
 
-        pydict = dict(env)
-        pydict['input'] = dict(env.input)
-        pydict['output'] = dict(env.output)
-        return pydict
+        return todict(env)

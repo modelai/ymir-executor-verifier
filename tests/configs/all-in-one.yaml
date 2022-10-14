@@ -1,0 +1,39 @@
+docker_image: 'youdaoyzbx/ymir-executor:ymir1.3.0-yolov5-cu111-tmi'
+in_dir: 'tests/data/voc_dog/in'
+out_dir: 'tests/data/voc_dog/out'
+pretrain_weights_dir: 'tests/pretrain_weights_dir'
+class_names: ['dog']
+# use env_config_file or ymir_env
+# env_config_file: 'tests/configs/env.yaml'
+env_config:
+  input:
+    annotations_dir: /in/annotations
+    assets_dir: /in/assets
+    candidate_index_file: /in/candidate-index.tsv
+    config_file: /in/config.yaml
+    models_dir: /in/models
+    root_dir: /in
+    training_index_file: /in/train-index.tsv
+    val_index_file: /in/val-index.tsv
+  output:
+    infer_result_file: /out/infer-result.json
+    mining_result_file: /out/result.tsv
+    models_dir: /out/models
+    monitor_file: /out/monitor.txt
+    root_dir: /out
+    tensorboard_dir: /out/tensorboard
+    training_result_file: /out/models/result.yaml
+  run_infer: false
+  run_mining: true
+  run_training: false
+  protocol_version: 1.0.0
+  task_id: t00000020000029d077c1662111056
+# use param_config_file or param_config
+param_config:
+  training:
+    epochs: 10
+  mining:
+    conf: 0.2
+  infer:
+    conf: 0.2
+
