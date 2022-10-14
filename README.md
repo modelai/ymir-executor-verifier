@@ -1,4 +1,4 @@
-# ymir-executor-checker
+# ymir-executor-verifier
 check docker image for ymir
 
 ## pre-requiremnts (for linux)
