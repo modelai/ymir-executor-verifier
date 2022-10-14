@@ -152,7 +152,10 @@ class Verifier(unittest.TestCase):
                     detach=detach,
                     stderr=True,
                     stdout=True)
-                verify_result[tag] = dict(error='', result=run_result.decode('utf-8'), docker=docker_image_name, command=command)
+                verify_result[tag] = dict(error='',
+                                          result=run_result.decode('utf-8'),
+                                          docker=docker_image_name,
+                                          command=command)
         except docker.errors.ContainerError as e:
             verify_result[tag] = dict(error=f'container error {e}')
         except docker.errors.APIError as e:
