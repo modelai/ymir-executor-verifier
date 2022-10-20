@@ -1,41 +1,61 @@
 import os
+import os.path as osp
 import unittest
-from pprint import pprint
-
+import warnings
 import yaml
 from easydict import EasyDict as edict
 
 from src.verifier_detection import VerifierDetection
-import shutil
+from src.utils import print_error
+
+
+def run_task(cfg: edict, task: str):
+    docker_image_name = cfg.docker_image
+    os.makedirs(cfg.out_dir, exist_ok=True)
+
+    v = VerifierDetection(cfg)
+    result_file = v.env_config['output'][f'{task}_result_file'].replace('/out', cfg.out_dir)
+    if osp.exists(result_file):
+        warnings.warn('result file {result_file} exist, auto remove it')
+        os.remove(result_file)
+    verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
+    print_error(verify_result)
+
 
 class TestTraining(unittest.TestCase):
+    """
+    batch test hyper parameters of ymir executor
+    """
 
     def test_main(self):
-        cfg = edict()
-        cfg.in_dir = 'tests/data/voc_dog/in'
-        root_out_dir = 'tests/data/voc_dog/out'
-        cfg.pretrain_weights_dir = 'tests/pretrain_weights_dir'
-        cfg.env_config_file = 'tests/configs/env.yaml'
-        cfg.param_config_file = 'tests/configs/test-config.yaml'
-        cfg.class_names = ['dog']
+        config_file = 'tests/configs/yolov5_hyper_parameters.yaml'
+        with open(config_file, 'r') as fp:
+            cfg = edict(yaml.safe_load(fp))
 
-        docker_image_name = 'youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi'
-        hyper_parameter_file = 'tests/configs/yolov5_hyper_parameters.yaml'
+        docker_image_name = cfg.docker_image
+        hyper_parameters = cfg.hyper_parameters
+        root_out_dir = cfg.out_dir
+        for task in cfg.tasks:
+            cfg.out_dir = osp.join(root_out_dir, task)
 
-        with open(hyper_parameter_file, 'r') as fp:
-            hyper_parameters = yaml.safe_load(fp)
+            # use training model weight for infer and mining
+            if task in ['mining', 'infer']:
+                cfg.pretrain_weights_dir = osp.join(root_out_dir, 'training', 'models')
 
-        for key, values in hyper_parameters.items():
-            for idx, value in enumerate(values):
-                for task in ['training']:
-                    cfg.out_dir = os.path.join(root_out_dir, f'{key}_{idx}')
-                    os.makedirs(cfg.out_dir, exist_ok=True)
-                    v = VerifierDetection(cfg)
-                    v.param_config[task][key] = value
-                    verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
-                    pprint(verify_result)
+            new_cfg = edict(cfg.copy())
+            if task in hyper_parameters:
+                for key, values in hyper_parameters[task].items():
+                    for idx, value in enumerate(values):
+                        new_cfg.out_dir = os.path.join(root_out_dir, task, f'{key}_{idx}')
 
-
+                        v = VerifierDetection(new_cfg)
+                        v.param_config[task][key] = value
+                        verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
+                        print_error(verify_result)
+            else:
+                v = VerifierDetection(new_cfg)
+                verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
+                print_error(verify_result)
 
 
 if __name__ == '__main__':

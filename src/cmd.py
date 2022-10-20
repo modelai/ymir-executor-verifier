@@ -2,10 +2,9 @@ import os.path as osp
 import argparse
 import yaml
 from easydict import EasyDict as edict
-from pprint import pprint
 
 from .verifier_detection import VerifierDetection
-
+from .utils import print_error
 
 def get_args():
     parser = argparse.ArgumentParser(prog='ymir executor verifier')
@@ -56,7 +55,7 @@ def main():
 
         v = VerifierDetection(cfg)
         verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
-        pprint(verify_result)
+        print_error(verify_result)
 
 
 if __name__ == '__main__':

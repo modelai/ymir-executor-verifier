@@ -63,12 +63,14 @@ workers_per_gpu: 4
 shm_size_per_gpu: 12G
 image_size: 640
 export_format: ark:raw
+ymir_saved_file_patterns: []
 ```
 - monitor process
 - tensorboard log
 - result file with model weight and map
 - load checkpoint
 - resume checkpoint
+- custom saved files, support python regular expression
 
 ## infer
 - infer-template.yaml

@@ -143,6 +143,7 @@ class VerifierDetection(Verifier):
                     msg=
                     f'file {f} in training result file {training_result_file} is not valid or relative to {self.ymir_out_dir}/models'
                 )
+                self.assertFalse(osp.isabs(f), msg=f'{f} in training result file is not relative path')
 
         if 'model_stages' in result:
             self.assertTrue(isinstance(result['model_stages'], dict),
@@ -163,6 +164,7 @@ class VerifierDetection(Verifier):
                         msg=
                         f'file {f} in training result file {training_result_file} is not valid or relative to {self.ymir_out_dir}/models'
                     )
+                    self.assertFalse(osp.isabs(f), msg=f'{f} in training result file is not relative path')
 
     def verify_monitor_file(self, docker_monitor_file: str) -> None:
         """ check the format of process monitor file

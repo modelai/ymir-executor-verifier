@@ -1,4 +1,4 @@
-docker_image: 'youdaoyzbx/ymir-executor:ymir1.3.0-yolov5-cu111-tmi'
+docker_image: 'youdaoyzbx/ymir-executor:ymir1.3.0-mmdet-cu111-tmi'
 in_dir: 'tests/data/voc_dog/in'
 # the root directory for all tasks.
 out_dir: 'tests/data/voc_dog/out'
@@ -34,13 +34,11 @@ env_config:
 # use param_config_file or param_config
 param_config:
   training:
-    epochs: 10
+    max_epochs: 10
+    samples_per_gpu: 8  # batch size per gpu
+    workers_per_gpu: 4
   mining:
-    conf: 0.2
+    mining_algorithm: aldd
   infer:
-    conf: 0.2
-# batch test
-hyper_parameters:
-  mining:
-    mining_algorithm: ['random', 'entropy', 'cald', 'aldd']
+    conf_threshold: 0.2
 
