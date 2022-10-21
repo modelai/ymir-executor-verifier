@@ -3,9 +3,11 @@ import logging
 import os
 import os.path as osp
 import shutil
+import time
 import unittest
 import warnings
 from pathlib import Path
+
 import docker
 import yaml
 from easydict import EasyDict as edict
@@ -19,7 +21,6 @@ def todict(cfg):
 
 
 class Verifier(unittest.TestCase):
-
     def __init__(self, cfg: edict):
         super().__init__()
         warnings.simplefilter('ignore', ResourceWarning)
@@ -28,7 +29,10 @@ class Verifier(unittest.TestCase):
         self.supported_algorithms = ['detection', 'segmentation', 'classification']
         # docker image config
         self.cfg = cfg
+        # overwrite /in/config.yaml and /in/env.yaml
         self.overwrite = True
+        self.create_new_outdir_if_exist = True
+
         self.class_names = cfg.class_names
         # os.path.abspath('') = '.'
         in_dir = cfg.get('in_dir', './in')
@@ -37,7 +41,11 @@ class Verifier(unittest.TestCase):
 
         out_dir = cfg.get('out_dir', './out')
         assert out_dir
-        os.makedirs(out_dir, exist_ok=True)
+        if self.create_new_outdir_if_exist and osp.exists(out_dir):
+            timestamp = int(time.time())
+            cfg.out_dir = out_dir = osp.join(out_dir, str(timestamp))
+            warnings.warn(f'change output directory to {out_dir}')
+        os.makedirs(out_dir, exist_ok=False)
         self.ymir_out_dir = os.path.abspath(out_dir)
 
         self.pretrain_files = []
@@ -192,6 +200,16 @@ class Verifier(unittest.TestCase):
             return dict(image_exist=dict(error=f'docker image {docker_image_name} not found {e}'))
         except docker.errors.APIError as e:
             return dict(image_exist=dict(error=f'unknown api error{e}'))
+
+    def clean_output_dir(self, task: str) -> None:
+        """
+        clean up output directory before running, currently only remove result file if exist
+        """
+        docker_result_file = self.env_config['output'][f'{task}_result_file']
+        result_file = self.get_host_path(docker_result_file)
+        if osp.exists(result_file):
+            warnings.warn('result file {result_file}:{docker_result_file} exist, auto remove it')
+            os.remove(result_file)
 
     def generate_yaml(self, template_config: dict, task: str) -> None:
         self.assertIn(task, self.supported_tasks)

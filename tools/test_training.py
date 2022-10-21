@@ -6,7 +6,7 @@ import yaml
 from easydict import EasyDict as edict
 
 from src.verifier_detection import VerifierDetection
-
+from src.utils import print_error
 
 class TestTraining(unittest.TestCase):
     def test_main(self):
@@ -27,7 +27,7 @@ class TestTraining(unittest.TestCase):
 
             for task in ['training']:
                 verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
-                pprint(verify_result)
+                print_error(verify_result)
 
 
 if __name__ == '__main__':

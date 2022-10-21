@@ -1,5 +1,6 @@
 import glob
 import json
+import os
 import os.path as osp
 import warnings
 from typing import List
@@ -50,6 +51,9 @@ class VerifierDetection(Verifier):
 
         ## generate config.yaml
         self.generate_yaml(template_config=template_config, task=task)
+
+        ## clean up output result file
+        self.clean_output_dir(task)
 
         ## running task
         task_result = self.docker_run(docker_image_name=docker_image_name,
