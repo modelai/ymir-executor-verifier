@@ -10,7 +10,7 @@ echo "unzip voc dog dataset"
 cd tests/data && unzip voc_dog_debug_sample.zip
 
 echo "generate candidate-index.tsv for mining and infer"
-cd voc_dog/in && cat val_index.tsv | awk '{print $1}' > candidate-index.tsv
+cd voc_dog/in && cat val-index.tsv | awk '{print $1}' > candidate-index.tsv
 
 echo "to test you docker image training"
 echo "1. modify ./ymir_docker_images.txt and tools/test_training.py"
