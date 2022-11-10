@@ -31,7 +31,7 @@ class Verifier(unittest.TestCase):
         self.cfg = cfg
         # overwrite /in/config.yaml and /in/env.yaml
         self.overwrite = True
-        self.create_new_outdir_if_exist = True
+        self.create_new_outdir_if_exist = False
 
         self.class_names = cfg.class_names
         # os.path.abspath('') = '.'
@@ -43,9 +43,9 @@ class Verifier(unittest.TestCase):
         assert out_dir
         if self.create_new_outdir_if_exist and osp.exists(out_dir):
             timestamp = int(time.time())
-            cfg.out_dir = out_dir = osp.join(out_dir, str(timestamp))
+            out_dir = osp.join(out_dir, str(timestamp))
             warnings.warn(f'change output directory to {out_dir}')
-        os.makedirs(out_dir, exist_ok=False)
+        os.makedirs(out_dir, exist_ok=True)
         self.ymir_out_dir = os.path.abspath(out_dir)
 
         self.pretrain_files = []
@@ -151,7 +151,7 @@ class Verifier(unittest.TestCase):
                     runtime='nvidia',
                     auto_remove=True,
                     volumes=[f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw'],
-                    environment=['YMIR_VERSION=1.1.0'],
+                    environment=['YMIR_VERSION=1.1.0'],  # support for ymir1.1.0/1.2.0/1.3.0/2.0.0
                     shm_size='64G',
                     detach=detach)
 
@@ -171,7 +171,7 @@ class Verifier(unittest.TestCase):
                     runtime='nvidia',
                     auto_remove=True,
                     volumes=[f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw'],
-                    environment=['YMIR_VERSION=1.1.0'],
+                    environment=['YMIR_VERSION=1.1.0'],  # support for ymir1.1.0/1.2.0/1.3.0/2.0.0
                     shm_size='64G',
                     detach=detach,
                     stderr=True,

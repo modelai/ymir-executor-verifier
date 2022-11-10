@@ -1,0 +1,23 @@
+# yolov5 demo config.yaml
+args_options: --exist-ok
+batch_size_per_gpu: 2
+class_names:
+- dog
+epochs: 10
+export_format: ark:raw
+gpu_count: 0
+gpu_id: ''
+img_size: 640
+max_batches: 2000
+max_epochs: 10
+max_iter: 10000
+model: yolov5s
+num_workers_per_gpu: 2
+opset: 11
+pretrained_model_params: []
+save_best_only: true
+save_period: 10
+shm_size: 128G
+sync_bn: false
+task_id: t00000020000020167c11661328921
+ymir_saved_file_patterns: ''

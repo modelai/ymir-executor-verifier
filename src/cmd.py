@@ -1,10 +1,14 @@
-import os.path as osp
 import argparse
+import os.path as osp
+import time
+import warnings
+
 import yaml
 from easydict import EasyDict as edict
 
-from .verifier_detection import VerifierDetection
 from .utils import print_error
+from .verifier_detection import VerifierDetection
+
 
 def get_args():
     parser = argparse.ArgumentParser(prog='ymir executor verifier')
@@ -13,8 +17,9 @@ def get_args():
     parser.add_argument('--tasks',
                         help='the task to test, will overwrite config file',
                         required=False,
-                        choices=['training', 'mining', 'infer', 'tmi', 't', 'm', 'i'])
+                        choices=['training', 'mining', 'infer', 'tmi', 'mi', 't', 'm', 'i'])
     parser.add_argument('--config', help='the config file', required=True)
+    parser.add_argument('--reuse', default=False, action='store_true', help='reuse output directory')
 
     return parser.parse_args()
 
@@ -24,6 +29,11 @@ def main():
 
     with open(args.config, 'r') as fp:
         cfg = edict(yaml.safe_load(fp))
+
+    if not args.reuse and osp.exists(cfg.out_dir):
+        timestamp = int(time.time())
+        cfg.out_dir = osp.join(cfg.out_dir, str(timestamp))
+        warnings.warn(f'change output directory to {cfg.out_dir}')
 
     v = VerifierDetection(cfg)
 
@@ -36,6 +46,8 @@ def main():
             tasks = ['infer']
         elif args.tasks in ['tmi']:
             tasks = ['training', 'mining', 'infer']
+        elif args.tasks in ['mi']:
+            tasks = ['mining', 'infer']
         else:
             raise Exception(f'unknown task {args.task}')
     else:
