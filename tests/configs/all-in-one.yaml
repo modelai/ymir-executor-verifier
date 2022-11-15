@@ -1,4 +1,4 @@
-docker_image: 'youdaoyzbx/ymir-executor:ymir1.3.0-yolov5-cu111-tmi'
+docker_image: 'youdaoyzbx/ymir-executor:ymir2.0.0-yolov5-cu111-tmi'
 in_dir: 'tests/data/voc_dog/in'
 # the root directory for all tasks.
 out_dir: 'tests/data/voc_dog/out'

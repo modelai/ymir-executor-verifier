@@ -54,6 +54,14 @@ ymir-verifier --help
 ymir-verifier --config tests/configs/all-in-one.yaml
 ```
 
+5. debug your docker images
+
+view [docker image debug](https://github.com/modelai/ymir-executor-fork/blob/ymir-dev/docs/docker-image-debug.md) for detail.
+
+```
+docker run -it --gpus all --shm-size 128G -v $PWD/tests/data/voc_dog/in:/in -v $PWD/tests/data/voc_dog/out:/out -v $HOME/code:/code youdaoyzbx/ymir-executor:ymir2.0.0-yolov5-cu111-tmi bash
+```
+
 ## training
 - training-template.yaml
 ```
@@ -81,7 +89,3 @@ ymir_saved_file_patterns: []
 - mining-template.yaml
 - monitor process
 - result file
-
-
-# TODO
-- multiple configs test, read from a config file, each option will be List[Any], modify the standard config and test the result.

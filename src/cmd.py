@@ -13,9 +13,11 @@ from .verifier_detection import VerifierDetection
 def get_args():
     parser = argparse.ArgumentParser(prog='ymir executor verifier')
 
-    parser.add_argument('--docker_image', help='docker image name, will overwrite config file', required=False)
+    parser.add_argument('--docker_image',
+                        help='docker image name, will overwrite config file if offered',
+                        required=False)
     parser.add_argument('--tasks',
-                        help='the task to test, will overwrite config file',
+                        help='the task to test, will overwrite config file if offered',
                         required=False,
                         choices=['training', 'mining', 'infer', 'tmi', 'mi', 't', 'm', 'i'])
     parser.add_argument('--config', help='the config file', required=True)

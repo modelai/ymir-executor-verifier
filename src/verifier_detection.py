@@ -1,6 +1,5 @@
 import glob
 import json
-import os
 import os.path as osp
 import warnings
 from typing import List
@@ -142,11 +141,9 @@ class VerifierDetection(Verifier):
             self.assertTrue(isinstance(result['model'], List),
                             msg=f'model in training result file {training_result_file} is not list: {result["model"]}')
             for f in result['model']:
-                self.assertTrue(
-                    osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
-                    msg=
-                    f'file {f} in training result file {training_result_file} is not valid or relative to {self.ymir_out_dir}/models'
-                )
+                self.assertTrue(osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
+                                msg=(f'file {f} in training result file {training_result_file} is not valid'
+                                     f' or relative to {self.ymir_out_dir}/models'))
                 self.assertFalse(osp.isabs(f), msg=f'{f} in training result file is not relative path')
 
         if 'model_stages' in result:
@@ -163,11 +160,9 @@ class VerifierDetection(Verifier):
                                       msg=f'files in model_stages[{stage_name}] in {training_result_file} not list')
 
                 for f in stage['files']:
-                    self.assertTrue(
-                        osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
-                        msg=
-                        f'file {f} in training result file {training_result_file} is not valid or relative to {self.ymir_out_dir}/models'
-                    )
+                    self.assertTrue(osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
+                                    msg=(f'file {f} in training result file {training_result_file} is not valid'
+                                         f' or relative to {self.ymir_out_dir}/models'))
                     self.assertFalse(osp.isabs(f), msg=f'{f} in training result file is not relative path')
 
     def verify_monitor_file(self, docker_monitor_file: str) -> None:
@@ -246,7 +241,7 @@ class VerifierDetection(Verifier):
         mining_image_list = []
         for line in lines:
             img_path, score_str = line.strip().split()
-            score = float(score_str)
+            score = float(score_str)  # noqa
             mining_image_list.append(img_path)
 
         docker_candidate_index_file = ymir_env['input']['candidate_index_file']
