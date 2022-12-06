@@ -4,6 +4,7 @@
 set -e
 
 echo "download voc dog dataset"
+mkdir -p tests/data
 wget https://github.com/modelai/ymir-executor-fork/releases/download/dataset/voc_dog_debug_sample.zip -O tests/data/voc_dog_debug_sample.zip
 
 echo "unzip voc dog dataset"
