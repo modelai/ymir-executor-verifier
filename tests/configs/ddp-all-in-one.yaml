@@ -34,12 +34,15 @@ env_config:
 # use param_config_file or param_config
 param_config:
   training:
+    gpu_id: '0,1,2'
     epochs: 10  # yolov5, yolov7, nanodet
     max_iter: 10000  # detectron2, max_iter > 5000
     max_batches: 2000 # yolov4
     max_epochs: 10  # mmdet
   mining:
     conf: 0.2
+    gpu_id: '0,1,2'
   infer:
     conf: 0.2
+    gpu_id: '0,1,2'
 

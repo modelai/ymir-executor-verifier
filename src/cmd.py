@@ -22,6 +22,7 @@ def get_args():
                         choices=['training', 'mining', 'infer', 'tmi', 'mi', 't', 'm', 'i'])
     parser.add_argument('--config', help='the config file', required=True)
     parser.add_argument('--reuse', default=False, action='store_true', help='reuse output directory')
+    parser.add_argument('--pretrain_weights_dir', default=None, help='use for mining and infer only')
 
     return parser.parse_args()
 
@@ -65,7 +66,11 @@ def main():
         cfg.out_dir = osp.join(root_out_dir, task)
         # use training model weight for infer and mining
         if task in ['mining', 'infer']:
-            cfg.pretrain_weights_dir = osp.join(root_out_dir, 'training', 'models')
+            if 'training' in tasks:
+                cfg.pretrain_weights_dir = osp.join(root_out_dir, 'training', 'models')
+            else:
+                assert args.pretrain_weights_dir and osp.exists(args.pretrain_weights_dir)
+                cfg.pretrain_weights_dir = args.pretrain_weights_dir
 
         v = VerifierDetection(cfg)
         verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
