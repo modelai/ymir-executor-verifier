@@ -96,7 +96,8 @@ class VerifierDetection(Verifier):
         self.assertTrue(valid,
                         msg=f'model directory {docker_model_out_dir} is not valid in docker, {model_out_dir} in host')
 
-        weight_files = glob.glob(osp.join(model_out_dir, '*'))
+        # weight files in models dir and stages dir
+        weight_files = glob.glob(osp.join(model_out_dir, '*')) + glob.glob(osp.join(model_out_dir, '*', '*'))
         self.assertGreater(len(weight_files),
                            0,
                            msg=f'no file found for {docker_model_out_dir} in docker, {model_out_dir} in host')
@@ -160,10 +161,14 @@ class VerifierDetection(Verifier):
                                       msg=f'files in model_stages[{stage_name}] in {training_result_file} not list')
 
                 for f in stage['files']:
-                    self.assertTrue(osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
-                                    msg=(f'file {f} in training result file {training_result_file} is not valid'
-                                         f' or relative to {self.ymir_out_dir}/models'))
+                    in_stage_dir = osp.isfile(osp.join(self.ymir_out_dir, 'models', stage_name, f))
+                    in_root_dir = osp.isfile(osp.join(self.ymir_out_dir, 'models', f))
+                    self.assertTrue(
+                        in_stage_dir or in_root_dir,
+                        msg=(f'file {f} in training result file {training_result_file} is not valid'
+                             f' or relative to {self.ymir_out_dir}/models and {self.ymir_out_dir}/models/{stage_name}'))
                     self.assertFalse(osp.isabs(f), msg=f'{f} in training result file is not relative path')
+                    self.assertFalse(osp.islink(f), msg=f'{f} in training result file is a link file')
 
     def verify_monitor_file(self, docker_monitor_file: str) -> None:
         """ check the format of process monitor file
