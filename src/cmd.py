@@ -21,6 +21,7 @@ def get_args():
                         required=False,
                         choices=['training', 'mining', 'infer', 'tmi', 'mi', 't', 'm', 'i'])
     parser.add_argument('--config', help='the config file', required=True)
+    parser.add_argument('--project', help='the project name', default=str(int(time.time())))
     parser.add_argument('--reuse', default=False, action='store_true', help='reuse output directory')
     parser.add_argument('--pretrain_weights_dir', default=None, help='use for mining and infer only')
 
@@ -34,8 +35,7 @@ def main():
         cfg = edict(yaml.safe_load(fp))
 
     if not args.reuse and osp.exists(cfg.out_dir):
-        timestamp = int(time.time())
-        cfg.out_dir = osp.join(cfg.out_dir, str(timestamp))
+        cfg.out_dir = osp.join(cfg.out_dir, args.project)
         warnings.warn(f'change output directory to {cfg.out_dir}')
 
     v = VerifierDetection(cfg)

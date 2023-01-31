@@ -2,7 +2,6 @@ import glob
 import logging
 import os
 import os.path as osp
-import shutil
 import time
 import unittest
 import warnings
@@ -21,6 +20,7 @@ def todict(cfg):
 
 
 class Verifier(unittest.TestCase):
+
     def __init__(self, cfg: edict):
         super().__init__()
         warnings.simplefilter('ignore', ResourceWarning)
@@ -34,6 +34,7 @@ class Verifier(unittest.TestCase):
         self.create_new_outdir_if_exist = False
 
         self.class_names = cfg.class_names
+
         # os.path.abspath('') = '.'
         in_dir = cfg.get('in_dir', './in')
         assert osp.isdir(in_dir)
@@ -49,15 +50,15 @@ class Verifier(unittest.TestCase):
         self.ymir_out_dir = os.path.abspath(out_dir)
 
         self.pretrain_files = []
-        pretrain_weights_dir = cfg.get('pretrain_weights_dir', './pretrain_weights_dir')
-        if osp.isdir(pretrain_weights_dir):
-            # copy pretrained weight files to /in/models in docker
-            copy_files = glob.glob(osp.join(pretrain_weights_dir, '*'), recursive=False)
-            os.makedirs(osp.join(self.ymir_in_dir, 'models'), exist_ok=True)
+        self.pretrain_weights_dir = osp.abspath(cfg.get('pretrain_weights_dir', './pretrain_weights_dir'))
+
+        if osp.isdir(self.pretrain_weights_dir):
+            # generate docker image absolute path for pretrained weight files
+            # note pretrain_weights_dir will mount to docker container
+            copy_files = glob.glob(osp.join(self.pretrain_weights_dir, '*'), recursive=False)
             for f in copy_files:
                 if osp.isfile(f):
-                    shutil.copy(f, osp.join(self.ymir_in_dir, 'models'))
-                    self.pretrain_files.append(osp.basename(f))
+                    self.pretrain_files.append(osp.join('/in/models', osp.basename(f)))
 
         # ymir env config, affect /in/env.yaml
         if cfg.get('env_config'):
@@ -143,6 +144,14 @@ class Verifier(unittest.TestCase):
         if cmd[-1] != 'bash /usr/bin/start.sh':
             verify_result['cmd'] = dict(warn=f'docker image cmd is not "bash /usr/bin/start.sh" but {cmd}')
 
+        if osp.isdir(self.pretrain_weights_dir):
+            volumes = [
+                f'{self.ymir_in_dir}:/in:ro', f'{self.pretrain_weights_dir}:/in/models:ro',
+                f'{self.ymir_out_dir}:/out:rw'
+            ]
+        else:
+            volumes = [f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw']
+
         try:
             if detach:
                 container = self.client.containers.run(
@@ -150,7 +159,7 @@ class Verifier(unittest.TestCase):
                     command=command,
                     runtime='nvidia',
                     auto_remove=True,
-                    volumes=[f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw'],
+                    volumes=volumes,
                     environment=['YMIR_VERSION=1.1.0'],  # support for ymir1.1.0/1.2.0/1.3.0/2.0.0
                     shm_size='64G',
                     detach=detach)
@@ -170,7 +179,7 @@ class Verifier(unittest.TestCase):
                     command=command,
                     runtime='nvidia',
                     auto_remove=True,
-                    volumes=[f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw'],
+                    volumes=volumes,
                     environment=['YMIR_VERSION=1.1.0'],  # support for ymir1.1.0/1.2.0/1.3.0/2.0.0
                     shm_size='64G',
                     detach=detach,

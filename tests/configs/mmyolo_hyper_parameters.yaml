@@ -1,4 +1,4 @@
-docker_image: 'youdaoyzbx/ymir-executor:ymir2.0.0-yolov5-cu111-tmi'
+docker_image: 'youdaoyzbx/ymir-executor:ymir2.1.0-mmyolo-cu113-tmi'
 in_dir: 'tests/data/voc_dog/in'
 # the root directory for all tasks.
 out_dir: 'tests/data/voc_dog/out'
@@ -34,14 +34,16 @@ env_config:
 # use param_config_file or param_config
 param_config:
   training:
-    epochs: 10  # yolov5, yolov7, nanodet
-    max_iter: 10000  # detectron2, max_iter > 5000
-    max_batches: 2000 # yolov4
     max_epochs: 10  # mmdet, mmyolo
     gpu_id: '1'
-    samples_per_gpu: 8 # mmdet, mmyolo
+    samples_per_gpu: 4 # mmdet, mmyolo
   mining:
     conf: 0.2
   infer:
     conf: 0.2
-
+# batch test
+hyper_parameters:
+  training:
+    model_name: ['yolov8_s', 'yolov7_tiny', 'yolov6_t', 'yolov5_s', 'yolox_tiny', 'ppyoloe_plus_s', 'rtmdet_tiny']
+  mining:
+    mining_algorithm: ['random', 'entropy']

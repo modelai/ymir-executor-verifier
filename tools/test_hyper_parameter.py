@@ -1,12 +1,13 @@
+import copy
 import os
 import os.path as osp
 import unittest
 import warnings
+
 import yaml
 from easydict import EasyDict as edict
-
-from src.verifier_detection import VerifierDetection
 from src.utils import print_error
+from src.verifier_detection import VerifierDetection
 
 
 def run_task(cfg: edict, task: str):
@@ -28,7 +29,8 @@ class TestTraining(unittest.TestCase):
     """
 
     def test_main(self):
-        config_file = 'tests/configs/yolov5_hyper_parameters.yaml'
+        # config_file = 'tests/configs/yolov5_hyper_parameters.yaml'
+        config_file = 'tests/configs/mmyolo_hyper_parameters.yaml'
         with open(config_file, 'r') as fp:
             cfg = edict(yaml.safe_load(fp))
 
@@ -42,7 +44,7 @@ class TestTraining(unittest.TestCase):
             if task in ['mining', 'infer']:
                 cfg.pretrain_weights_dir = osp.join(root_out_dir, 'training', 'models')
 
-            new_cfg = edict(cfg.copy())
+            new_cfg = edict(copy.deepcopy(cfg))
             if task in hyper_parameters:
                 for key, values in hyper_parameters[task].items():
                     for idx, value in enumerate(values):
