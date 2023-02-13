@@ -1,11 +1,12 @@
-docker_image: 'youdaoyzbx/ymir-executor:ymir2.1.0-mmyolo-cu113-tmi'
-in_dir: 'tests/data/voc_dog/in'
+docker_image: 'youdaoyzbx/ymir-executor:ymir2.0.0-mmseg-cu111-tmi'
+data_dir: 'tests/data/eg100/in'
 # the root directory for all tasks.
-out_dir: 'tests/data/voc_dog/out/mmyolo'
+work_dir: 'tests/data/eg100/out'
 pretrain_weights_dir: 'tests/pretrain_weights_dir'
-class_names: ['dog']
+class_names: ['foreground']
 # training first to generate weight file for mining and infer
 tasks: ['training', 'mining', 'infer']
+gpu_id: '0'
 # use env_config_file or ymir_env
 # env_config_file: 'tests/configs/env.yaml'
 env_config:
@@ -18,6 +19,7 @@ env_config:
     root_dir: /in
     training_index_file: /in/train-index.tsv
     val_index_file: /in/val-index.tsv
+  manifest_file: /img-man/manifest.yaml
   output:
     infer_result_file: /out/infer-result.json
     mining_result_file: /out/result.tsv
@@ -29,22 +31,15 @@ env_config:
   run_infer: false
   run_mining: true
   run_training: false
-  protocol_version: 1.0.0  # ymir1.3.0 - ymir2.0.0
+  protocol_version: 1.1.0  # ymir2.1.0
   task_id: t00000020000029d077c1662111056
 # use param_config_file or param_config
 param_config:
   training:
-    max_epochs: 10  # mmdet, mmyolo
-    gpu_id: '1'
-    samples_per_gpu: 4 # mmdet, mmyolo
+    max_iters: 200
+    interval: 20
   mining:
     conf: 0.2
   infer:
     conf: 0.2
-# batch test
-hyper_parameters:
-  training:
-    # 'yolov8_s', 'yolov7_tiny', 'yolov6_t', 'yolov5_s', 'yolox_tiny', 'ppyoloe_plus_s',
-    model_name: ['rtmdet_tiny']
-  mining:
-    mining_algorithm: ['random', 'entropy']
+

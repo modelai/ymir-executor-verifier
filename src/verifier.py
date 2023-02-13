@@ -2,14 +2,18 @@ import glob
 import logging
 import os
 import os.path as osp
+import shutil
 import time
 import unittest
 import warnings
 from pathlib import Path
+from typing import List
 
 import docker
 import yaml
 from easydict import EasyDict as edict
+
+from .utils import append_binds, run_cmd, run_docker_cmd
 
 
 def todict(cfg):
@@ -29,25 +33,19 @@ class Verifier(unittest.TestCase):
         self.supported_algorithms = ['detection', 'segmentation', 'classification']
         # docker image config
         self.cfg = cfg
-        # overwrite /in/config.yaml and /in/env.yaml
-        self.overwrite = True
-        self.create_new_outdir_if_exist = False
-
+        self.task_id = cfg.get('task_id', str(round(time.time())))
+        self.gpu_id = self.cfg.get('gpu_id', '0')
         self.class_names = cfg.class_names
 
         # os.path.abspath('') = '.'
         in_dir = cfg.get('in_dir', './in')
         assert osp.isdir(in_dir)
-        self.ymir_in_dir = os.path.abspath(in_dir)
+        self.host_in_dir = os.path.abspath(in_dir)
 
         out_dir = cfg.get('out_dir', './out')
         assert out_dir
-        if self.create_new_outdir_if_exist and osp.exists(out_dir):
-            timestamp = int(time.time())
-            out_dir = osp.join(out_dir, str(timestamp))
-            warnings.warn(f'change output directory to {out_dir}')
         os.makedirs(out_dir, exist_ok=True)
-        self.ymir_out_dir = os.path.abspath(out_dir)
+        self.host_out_dir = os.path.abspath(out_dir)
 
         self.pretrain_files = []
         self.pretrain_weights_dir = osp.abspath(cfg.get('pretrain_weights_dir', './pretrain_weights_dir'))
@@ -58,7 +56,7 @@ class Verifier(unittest.TestCase):
             copy_files = glob.glob(osp.join(self.pretrain_weights_dir, '*'), recursive=False)
             for f in copy_files:
                 if osp.isfile(f):
-                    self.pretrain_files.append(osp.join('/in/models', osp.basename(f)))
+                    self.pretrain_files.append(osp.join('/in/models', osp.relpath(f, start=self.pretrain_weights_dir)))
 
         # ymir env config, affect /in/env.yaml
         if cfg.get('env_config'):
@@ -71,6 +69,9 @@ class Verifier(unittest.TestCase):
                     self.env_config = yaml.safe_load(fp)
             else:
                 self.env_config = self.get_default_env()
+
+        self.docker_in_dir = self.cfg.env_config.input.root_dir  # '/in'
+        self.docker_out_dir = self.cfg.env_config.output.root_dir  # '/out'
 
         # hyper-parameter config, affect /in/config.yaml
         if cfg.get('param_config'):
@@ -100,7 +101,7 @@ class Verifier(unittest.TestCase):
                     self.param_config[task]['model_params_path'] = self.pretrain_files
 
         # docker client
-        self.client = docker.from_env()
+        self.docker_image = self.cfg.get('docker_image', 'youdaoyzbx/ymir-executor:ymir2.1.0-mmyolo-cu113-tmi')
 
     def get_host_path(self, docker_file_path: str):
         """
@@ -108,10 +109,10 @@ class Verifier(unittest.TestCase):
         """
         if Path('/out') in Path(docker_file_path).parents:
             docker_root_dir = '/out'
-            host_root_dir = self.ymir_out_dir
+            host_root_dir = self.host_out_dir
         elif Path('/in') in Path(docker_file_path).parents:
             docker_root_dir = '/in'
-            host_root_dir = self.ymir_in_dir
+            host_root_dir = self.host_in_dir
         else:
             raise Exception(f'unknown docker file path {docker_file_path}')
         host_file_path = osp.join(host_root_dir, osp.relpath(docker_file_path, start=docker_root_dir))
@@ -126,205 +127,9 @@ class Verifier(unittest.TestCase):
         else:
             return osp.isdir(host_path), host_path
 
-    def docker_run(self, docker_image_name: str, command: str, tag: str = 'run', detach=False) -> dict:
-        """
-        run docker image for target task
-        """
-        verify_result = self.verify_exist(docker_image_name)
-        if verify_result['image_exist']['error']:
-            return verify_result
-
-        target_image = self.client.images.get(docker_image_name)
-
-        workspace = target_image.attrs['Config']['WorkingDir']
-        if workspace != '/app':
-            verify_result['workspace'] = dict(warn=f'docker image workspace is not /app, but {workspace}')
-
-        cmd = target_image.attrs['Config']['Cmd']
-        if cmd[-1] != 'bash /usr/bin/start.sh':
-            verify_result['cmd'] = dict(warn=f'docker image cmd is not "bash /usr/bin/start.sh" but {cmd}')
-
-        if osp.isdir(self.pretrain_weights_dir):
-            volumes = [
-                f'{self.ymir_in_dir}:/in:ro', f'{self.pretrain_weights_dir}:/in/models:ro',
-                f'{self.ymir_out_dir}:/out:rw'
-            ]
-        else:
-            volumes = [f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw']
-
-        try:
-            if detach:
-                container = self.client.containers.run(
-                    image=target_image,
-                    command=command,
-                    runtime='nvidia',
-                    auto_remove=True,
-                    volumes=volumes,
-                    environment=['YMIR_VERSION=1.1.0'],  # support for ymir1.1.0/1.2.0/1.3.0/2.0.0
-                    shm_size='64G',
-                    detach=detach)
-
-                print('use follow command to view docker logs')
-                print(f'docker logs -f {container.short_id}')
-                # container.start()
-                stream = container.logs(stream=True, follow=True)
-                for line in stream:
-                    print(line.decode('utf-8'))
-                verify_result[tag] = dict(error='', result='', docker=docker_image_name, command=command)
-                container.wait()
-            else:
-                print('this task may take long time, view `docker ps` and `docker logs -f xxx` for process')
-                run_result = self.client.containers.run(
-                    image=target_image,
-                    command=command,
-                    runtime='nvidia',
-                    auto_remove=True,
-                    volumes=volumes,
-                    environment=['YMIR_VERSION=1.1.0'],  # support for ymir1.1.0/1.2.0/1.3.0/2.0.0
-                    shm_size='64G',
-                    detach=detach,
-                    stderr=True,
-                    stdout=True)
-                verify_result[tag] = dict(error='',
-                                          result=run_result.decode('utf-8'),
-                                          docker=docker_image_name,
-                                          command=command)
-        except docker.errors.ContainerError as e:
-            verify_result[tag] = dict(error=f'container error {e}')
-        except docker.errors.APIError as e:
-            verify_result[tag] = dict(error=f'API error {e}')
-        except docker.errors.ImageNotFound as e:
-            verify_result[tag] = dict(error=f'docker image not found {e}')
-        finally:
-            if verify_result[tag]['error']:
-                return verify_result
-
-        return verify_result
-
-    def verify_exist(self, docker_image_name: str) -> dict:
-        try:
-            self.client.images.get(docker_image_name)
-            return dict(image_exist=dict(error=''))
-        except docker.errors.ImageNotFound as e:
-            return dict(image_exist=dict(error=f'docker image {docker_image_name} not found {e}'))
-        except docker.errors.APIError as e:
-            return dict(image_exist=dict(error=f'unknown api error{e}'))
-
-    def clean_output_dir(self, task: str) -> None:
-        """
-        clean up output directory before running, currently only remove result file if exist
-        """
-        docker_result_file = self.env_config['output'][f'{task}_result_file']
-        result_file = self.get_host_path(docker_result_file)
-        if osp.exists(result_file):
-            warnings.warn('result file {result_file}:{docker_result_file} exist, auto remove it')
-            os.remove(result_file)
-
-    def generate_yaml(self, template_config: dict, task: str) -> None:
-        self.assertIn(task, self.supported_tasks)
-
-        in_config_file = osp.join(self.ymir_in_dir, 'config.yaml')
-        env_config_file = osp.join(self.ymir_in_dir, 'env.yaml')
-
-        if osp.exists(in_config_file):
-            warnings.warn(f'exists {in_config_file}, no needs to generate')
-
-        gpu_id: str = str(self.cfg.get('gpu_id', '0'))
-        gpu_count: int = len(gpu_id.split(','))
-        task_id: str = 't00000020000020167c11661328921'
-        if task == 'training':
-            task_config = dict(gpu_id=gpu_id,
-                               gpu_count=gpu_count,
-                               task_id=task_id,
-                               class_names=self.class_names,
-                               pretrained_model_params=[])
-
-            in_config = template_config.copy()
-            in_config.update(task_config)
-        elif task == 'infer':
-            task_config = dict(gpu_id=gpu_id,
-                               gpu_count=gpu_count,
-                               task_id=task_id,
-                               class_names=self.class_names,
-                               model_params_path=[])
-
-            in_config = template_config.copy()
-            in_config.update(task_config)
-        elif task == 'mining':
-            task_config = dict(gpu_id=gpu_id,
-                               gpu_count=gpu_count,
-                               task_id=task_id,
-                               class_names=self.class_names,
-                               model_params_path=[])
-
-            in_config = template_config.copy()
-            in_config.update(task_config)
-        else:
-            raise Exception(f'unknown task name {task}')
-
-        ### apply user define config
-        if self.param_config[task]:
-            in_config.update(self.param_config[task])
-            logging.info(f'modify training template config with {self.param_config[task]}')
-
-        with open(in_config_file, 'w') as fp:
-            yaml.dump(in_config, fp)
-
-        ### generate env.yaml
-        if osp.exists(env_config_file):
-            if self.overwrite:
-                warnings.warn(f'exists {env_config_file}, overwrite them')
-            else:
-                warnings.warn(f'exists {env_config_file}, skip generate them')
-                return None
-
-        env_config = self.env_config.copy()
-
-        if task == 'training':
-            training_index_file = osp.join(self.ymir_in_dir, 'train-index.tsv')
-            if not osp.exists(training_index_file):
-                raise Exception(f'{training_index_file} not exist')
-            val_index_file = osp.join(self.ymir_in_dir, 'val-index.tsv')
-            if not osp.exists(val_index_file):
-                raise Exception(f'{val_index_file} not exist')
-
-            task_config = dict(run_training=True,
-                               run_mining=False,
-                               run_infer=False,
-                               task_id=task_id,
-                               input=dict(training_index_file='/in/train-index.tsv',
-                                          val_index_file='/in/val-index.tsv',
-                                          candidate_index_file=''))
-
-        elif task == 'infer':
-            mining_index_file = osp.join(self.ymir_in_dir, 'candidate-index.tsv')
-            if not osp.exists(mining_index_file):
-                raise Exception(f'{mining_index_file} not exist')
-
-            task_config = dict(run_training=False,
-                               run_mining=False,
-                               run_infer=True,
-                               task_id=task_id,
-                               input=dict(training_index_file='',
-                                          val_index_file='',
-                                          candidate_index_file='/in/candidate-index.tsv'))
-        elif task == 'mining':
-            mining_index_file = osp.join(self.ymir_in_dir, 'candidate-index.tsv')
-            if not osp.exists(mining_index_file):
-                raise Exception(f'{mining_index_file} not exist')
-            task_config = dict(run_training=False,
-                               run_mining=True,
-                               run_infer=False,
-                               task_id=task_id,
-                               input=dict(training_index_file='',
-                                          val_index_file='',
-                                          candidate_index_file='/in/candidate-index.tsv'))
-        else:
-            raise Exception(f'unknown task {task}')
-
-        env_config.update(task_config)
-        with open(env_config_file, 'w') as fw:
-            yaml.dump(env_config, fw)
+    def verify_exist(self, docker_image_name: str) -> None:
+        client = docker.from_env()
+        client.images.get(docker_image_name)
 
     def get_default_env(self) -> dict:
         """
@@ -377,3 +182,171 @@ class Verifier(unittest.TestCase):
         env.task_id = 't00000020000029d077c1662111056'
 
         return todict(env)
+
+    def create_workspace(self, task: str, pretrain_weights_dir: str = '') -> List[str]:
+        """create a worksapce for docker
+
+        Parameters
+        ----------
+        task : str
+            training, infer or mining
+        pretrain_weights_dir : str, optional
+            pretrain weights directory, by default ''
+
+        create a new workspace with task_id
+
+        workspace
+        - in
+            - assets  # softlink from self.cfg.data_dir + assets
+            - models  # softlink from pretrain_weights_dir
+            - annotations # softlink from self.cfg.data_dir + anntations
+            - config.yaml
+            - env.yaml
+            - train-index.tsv # copy from self.cfg.data_dir
+            - val-index.tsv # copy from self.cfg.data_dir
+            - candidate-index.tsv # copy from self.cfg.data_dir
+        - out
+        """
+        # create in, out and subdir
+        self.data_dir = self.cfg.get('data_dir', None) or self.cfg.get('in_dir')
+        self.work_dir = self.cfg.get('work_dir', None) or self.cfg.get('out_dir')
+
+        self.cfg.in_dir = osp.join(self.work_dir, self.task_id, task, 'in')
+        self.cfg.out_dir = osp.join(self.work_dir, self.task_id, task, 'out')
+        os.makedirs(self.cfg.in_dir, exist_ok=True)
+        os.makedirs(self.cfg.out_dir, exist_ok=True)
+        volumes = [f'-v{osp.abspath(self.cfg.in_dir)}:/in:ro', f'-v{osp.abspath(self.cfg.out_dir)}:/out:rw']
+
+        basename_assets_dir = osp.relpath(self.cfg.env_config.input.assets_dir, start=self.docker_in_dir)
+        basename_anntations_dir = osp.relpath(self.cfg.env_config.input.annotations_dir, start=self.docker_in_dir)
+        basename_models_dir = osp.relpath(self.cfg.env_config.input.models_dir, start=self.docker_in_dir)
+        for subdir in [basename_assets_dir, basename_anntations_dir]:
+            xxx_dir = osp.join(self.data_dir, subdir)
+            os.symlink(osp.abspath(xxx_dir), osp.join(osp.abspath(self.cfg.in_dir), subdir))
+            append_binds(volumes, xxx_dir)
+
+        self.cfg.pretrain_weights_dir = pretrain_weights_dir
+        if task in ['mining', 'infer']:
+            assert osp.isdir(pretrain_weights_dir)
+
+        if pretrain_weights_dir:
+            os.symlink(osp.abspath(pretrain_weights_dir), osp.join(osp.abspath(self.cfg.in_dir), basename_models_dir))
+            append_binds(volumes, pretrain_weights_dir)
+
+        # generate config.yaml and env.yaml
+        in_config_file = osp.join(self.cfg.in_dir, 'config.yaml')
+        env_config_file = osp.join(self.cfg.in_dir, 'env.yaml')
+        self.generate_hyperparameter_yaml(task, in_config_file)
+        self.generate_env_yaml(task, env_config_file)
+
+        # copy train-index.tsv, val-index.tsv, candidate-index.tsv
+        if task in ['training']:
+            train_index_file = self.cfg.env_config.input.training_index_file
+            val_index_file = self.cfg.env_config.input.val_index_file
+
+            host_train_index_file = train_index_file.replace(self.docker_in_dir, self.data_dir)
+            host_val_index_file = val_index_file.replace(self.docker_in_dir, self.data_dir)
+            shutil.copy(host_train_index_file, self.cfg.in_dir)
+            shutil.copy(host_val_index_file, self.cfg.in_dir)
+        else:
+            candidate_index_file = self.cfg.env_config.input.candidate_index_file
+            host_candidate_index_file = candidate_index_file.replace(self.docker_in_dir, self.data_dir)
+            shutil.copy(host_candidate_index_file, self.cfg.in_dir)
+        return volumes
+
+    def generate_hyperparameter_yaml(self, task: str, in_config_file: str) -> None:
+        assert task in ['training', 'infer', 'mining'], f'task is {task}'
+
+        output = run_docker_cmd(self.docker_image, f'cat /img-man/{task}-template.yaml'.split())
+
+        template_config = yaml.safe_load(output)
+
+        # the real gpu id
+        real_gpu_id: str = self.gpu_id
+        gpu_count: int = len(real_gpu_id.split(','))
+        # the fake gpu id
+        gpu_id = ','.join([str(i) for i in range(gpu_count)])
+
+        task_id = self.task_id
+        if task == 'training':
+            task_config = dict(gpu_id=gpu_id,
+                               gpu_count=gpu_count,
+                               task_id=task_id,
+                               class_names=self.class_names,
+                               pretrained_model_params=self.pretrain_files)
+
+            in_config = template_config.copy()
+            in_config.update(task_config)
+        elif task == 'infer':
+            task_config = dict(gpu_id=gpu_id,
+                               gpu_count=gpu_count,
+                               task_id=task_id,
+                               class_names=self.class_names,
+                               model_params_path=self.pretrain_files)
+
+            in_config = template_config.copy()
+            in_config.update(task_config)
+        elif task == 'mining':
+            task_config = dict(gpu_id=gpu_id,
+                               gpu_count=gpu_count,
+                               task_id=task_id,
+                               class_names=self.class_names,
+                               model_params_path=self.pretrain_files)
+
+            in_config = template_config.copy()
+            in_config.update(task_config)
+        else:
+            raise Exception(f'unknown task name {task}')
+
+        ### apply user define config
+        if self.param_config[task]:
+            in_config.update(self.param_config[task])
+            logging.info(f'modify training template config with {self.param_config[task]}')
+
+        with open(in_config_file, 'w') as fp:
+            yaml.dump(in_config, fp)
+
+    def generate_env_yaml(self, task: str, env_config_file: str) -> None:
+        env_config = self.env_config.copy()
+        task_id = self.task_id
+
+        if task == 'training':
+            task_config = dict(run_training=True,
+                               run_mining=False,
+                               run_infer=False,
+                               task_id=task_id)
+            env_config['input']['candidate_index_file'] = ''
+        elif task == 'infer':
+            task_config = dict(run_training=False,
+                               run_mining=False,
+                               run_infer=True,
+                               task_id=task_id)
+            env_config['input']['training_index_file'] = ''
+            env_config['input']['val_index_file'] = ''
+        elif task == 'mining':
+            task_config = dict(run_training=False,
+                               run_mining=True,
+                               run_infer=False,
+                               task_id=task_id)
+            env_config['input']['training_index_file'] = ''
+            env_config['input']['val_index_file'] = ''
+        else:
+            raise Exception(f'unknown task {task}')
+
+        env_config.update(task_config)
+        with open(env_config_file, 'w') as fw:
+            yaml.dump(env_config, fw)
+
+    def run_task(self, task: str, pretrain_weights_dir: str = ''):
+        # create workspace in self.cfg.in_dir
+        volumes = self.create_workspace(task, pretrain_weights_dir)
+
+        cmd = 'docker run --rm'.split()
+        cmd += volumes
+        if self.gpu_id:
+            cmd.extend(['--gpus', f"\"device={self.gpu_id}\""])
+
+        cmd.extend(['--ipc', 'host', self.docker_image])
+        cmd.extend(['bash', '/usr/bin/start.sh'])
+
+        run_cmd(cmd)

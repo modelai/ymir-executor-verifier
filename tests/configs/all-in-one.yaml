@@ -38,7 +38,6 @@ param_config:
     max_iter: 10000  # detectron2, max_iter > 5000
     max_batches: 2000 # yolov4
     max_epochs: 10  # mmdet, mmyolo
-    gpu_id: '1'
     samples_per_gpu: 8 # mmdet, mmyolo
   mining:
     conf: 0.2

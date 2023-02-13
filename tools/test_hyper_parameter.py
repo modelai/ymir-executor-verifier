@@ -37,12 +37,13 @@ class TestTraining(unittest.TestCase):
         docker_image_name = cfg.docker_image
         hyper_parameters = cfg.hyper_parameters
         root_out_dir = cfg.out_dir
+        pretrain_weights_dir = None
         for task in cfg.tasks:
             cfg.out_dir = osp.join(root_out_dir, task)
 
             # use training model weight for infer and mining
             if task in ['mining', 'infer']:
-                cfg.pretrain_weights_dir = osp.join(root_out_dir, 'training', 'models')
+                cfg.pretrain_weights_dir = pretrain_weights_dir or cfg.pretrain_weights_dir
 
             new_cfg = edict(copy.deepcopy(cfg))
             if task in hyper_parameters:
@@ -58,6 +59,9 @@ class TestTraining(unittest.TestCase):
                 v = VerifierDetection(new_cfg)
                 verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
                 print_error(verify_result)
+
+            if task in ['training']:
+                pretrain_weights_dir = osp.join(new_cfg.out_dir, 'models')
 
 
 if __name__ == '__main__':

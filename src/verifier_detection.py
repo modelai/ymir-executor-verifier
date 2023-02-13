@@ -14,65 +14,29 @@ class VerifierDetection(Verifier):
 
     def __init__(self, cfg: edict):
         super().__init__(cfg)
+        self.object_type = 2
         self.supported_algorithms = ['detection']
 
     def verify(self,
                docker_image_name: str = 'youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi',
-               tasks: List[str] = ['training', 'infer']) -> dict:
+               tasks: List[str] = ['training', 'infer']) -> None:
 
-        verify_result = dict()
         for task in tasks:
-            task_result = self.verify_task(docker_image_name, task)
-            verify_result.update(task_result)
+            self.verify_task(docker_image_name, task)
 
-        return verify_result
-
-    def verify_task(self, docker_image_name: str, task: str, detach: bool = False) -> dict:
-        assert task in self.supported_tasks, f'task {task} not in supported tasks {self.supported_tasks}'
-
-        command = f'cat /img-man/{task}-template.yaml'
-
-        verify_result = self.docker_run(docker_image_name=docker_image_name,
-                                        command=command,
-                                        tag=f'get-{task}-template')
-
-        try:
-            template_config = yaml.safe_load(verify_result[f'get-{task}-template']['result'])
-            verify_result[f'{task}_template'] = dict(error='', config=template_config)
-        except yaml.YAMLError as e:
-            verify_result[f'{task}_template'] = dict(error=f'{e}')
-        except Exception as e:
-            print(verify_result)
-            raise e
-
-        if verify_result[f'{task}_template']['error']:
-            return verify_result
-
-        ## generate config.yaml
-        self.generate_yaml(template_config=template_config, task=task)
-
-        ## clean up output result file
-        self.clean_output_dir(task)
-
-        ## running task
-        task_result = self.docker_run(docker_image_name=docker_image_name,
-                                      command='bash /usr/bin/start.sh',
-                                      tag=task,
-                                      detach=detach)
-        verify_result.update(task_result)
+    def verify_task(self, docker_image_name: str, task: str) -> None:
+        self.docker_image = docker_image_name
+        self.run_task(task, self.pretrain_weights_dir)
 
         # if task finished without error, check the output
-        if verify_result[task]['error'] == '':
-            if task == 'training':
-                self.verify_training_output()
-            elif task == 'infer':
-                self.verify_infer_output()
-            elif task == 'mining':
-                self.verify_mining_output()
-            else:
-                raise Exception(f'unknown task {task}')
-
-        return verify_result
+        if task == 'training':
+            self.verify_training_output()
+        elif task == 'infer':
+            self.verify_infer_output()
+        elif task == 'mining':
+            self.verify_mining_output()
+        else:
+            raise Exception(f'unknown task {task}')
 
     def verify_training_output(self) -> None:
         """
@@ -142,9 +106,9 @@ class VerifierDetection(Verifier):
             self.assertTrue(isinstance(result['model'], List),
                             msg=f'model in training result file {training_result_file} is not list: {result["model"]}')
             for f in result['model']:
-                self.assertTrue(osp.isfile(osp.join(self.ymir_out_dir, 'models', f)),
+                self.assertTrue(osp.isfile(osp.join(self.host_out_dir, 'models', f)),
                                 msg=(f'file {f} in training result file {training_result_file} is not valid'
-                                     f' or relative to {self.ymir_out_dir}/models'))
+                                     f' or relative to {self.host_out_dir}/models'))
                 self.assertFalse(osp.isabs(f), msg=f'{f} in training result file is not relative path')
 
         if 'model_stages' in result:
@@ -161,12 +125,12 @@ class VerifierDetection(Verifier):
                                       msg=f'files in model_stages[{stage_name}] in {training_result_file} not list')
 
                 for f in stage['files']:
-                    in_stage_dir = osp.isfile(osp.join(self.ymir_out_dir, 'models', stage_name, f))
-                    in_root_dir = osp.isfile(osp.join(self.ymir_out_dir, 'models', f))
+                    in_stage_dir = osp.isfile(osp.join(self.host_out_dir, 'models', stage_name, f))
+                    in_root_dir = osp.isfile(osp.join(self.host_out_dir, 'models', f))
                     self.assertTrue(
                         in_stage_dir or in_root_dir,
                         msg=(f'file {f} in training result file {training_result_file} is not valid'
-                             f' or relative to {self.ymir_out_dir}/models and {self.ymir_out_dir}/models/{stage_name}'))
+                             f' or relative to {self.host_out_dir}/models and {self.host_out_dir}/models/{stage_name}'))
                     self.assertFalse(osp.isabs(f), msg=f'{f} in training result file is not relative path')
                     self.assertFalse(osp.islink(f), msg=f'{f} in training result file is a link file')
 
@@ -188,9 +152,6 @@ class VerifierDetection(Verifier):
         docker_task_result_file = ymir_env['output']['infer_result_file']
         valid, task_result_file = self.verify_docker_path(docker_task_result_file, is_file=True)
         self.assertTrue(valid, msg=f'cannot find {docker_task_result_file} in docker, {task_result_file} in host')
-
-        if not valid:
-            return None
 
         with open(task_result_file, 'r') as f:
             results = json.loads(f.read())
