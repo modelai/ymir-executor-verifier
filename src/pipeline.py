@@ -1,3 +1,4 @@
+import copy
 import os.path as osp
 import shutil
 import time
@@ -14,7 +15,7 @@ class PipeLine(object):
     """
 
     def __init__(self, cfg: edict):
-        """use two base directory to generate in_dir and out_dir
+        """use data_dir and work_dir to generate in_dir and out_dir for multiple tasks
 
         <data_dir> = cfg.data_dir
         <work_dir> = cfg.work_dir
@@ -25,12 +26,10 @@ class PipeLine(object):
         """
 
         self.task_id = str(round(time.time()))
-        self.cfg = cfg
+        self.cfg = copy.deepcopy(cfg)
 
-        self.data_dir = cfg.get('data_dir', None) or cfg.get('in_dir')
-        self.work_dir = cfg.get('work_dir', None) or cfg.get('out_dir')
-        self.cfg.data_dir = self.data_dir
-        self.cfg.work_dir = self.work_dir
+        self.data_dir = self.cfg.data_dir
+        self.work_dir = self.cfg.work_dir
         self.class_names = self.cfg.class_names
         self.gpu_id = self.cfg.get('gpu_id', '0')
         self.param_config = self.cfg.param_config  # hyper-parameter config
@@ -94,6 +93,8 @@ class PipeLine(object):
             else:
                 object_type = 2
 
+            self.cfg.in_dir = osp.join(self.work_dir, self.task_id, task, 'in')
+            self.cfg.out_dir = osp.join(self.work_dir, self.task_id, task, 'out')
             if object_type == 2:
                 v = VerifierDetection(self.cfg)
             else:

@@ -1,7 +1,7 @@
 docker_image: 'youdaoyzbx/ymir-executor:ymir2.1.0-mmyolo-cu113-tmi'
-in_dir: 'tests/data/voc_dog/in'
+data_dir: 'tests/data/voc_dog/in'
 # the root directory for all tasks.
-out_dir: 'tests/data/voc_dog/out/mmyolo'
+work_dir: 'tests/data/voc_dog/out/mmyolo'
 pretrain_weights_dir: 'tests/pretrain_weights_dir'
 class_names: ['dog']
 # training first to generate weight file for mining and infer

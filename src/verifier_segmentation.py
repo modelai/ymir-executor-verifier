@@ -29,7 +29,7 @@ class VerifierSegmentation(VerifierDetection):
 
         self.object_type = manifest['object_type']
         print(f'obtain image object type = {self.object_type}')
-        assert manifest['object_type'] in [3, 4], f'unknown object type {manifest}'
+        assert manifest['object_type'] in [3, 4], f'unknown object type {manifest} for {docker_image_name}'
         return manifest
 
     def verify_task(self, docker_image_name: str, task: str) -> None:

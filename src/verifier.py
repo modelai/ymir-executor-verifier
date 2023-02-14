@@ -1,3 +1,4 @@
+import copy
 import glob
 import logging
 import os
@@ -7,6 +8,7 @@ import time
 import unittest
 import warnings
 from pathlib import Path
+from pprint import pprint
 from typing import List
 
 import docker
@@ -26,29 +28,41 @@ def todict(cfg):
 class Verifier(unittest.TestCase):
 
     def __init__(self, cfg: edict):
+        """use in_dir and out_dir to run single task
+
+        Parameters
+        ----------
+        cfg : edict
+            in_dir: the directory will mount to docker image /in
+            out_dir: the directory will mount to docker image /out
+            data_dir: optional, the dataset directory
+            work_dir: optional, the workspace for in_dir and out_dir
+        """
         super().__init__()
         warnings.simplefilter('ignore', ResourceWarning)
 
         self.supported_tasks = ['training', 'mining', 'infer']
         self.supported_algorithms = ['detection', 'segmentation', 'classification']
         # docker image config
-        self.cfg = cfg
-        self.task_id = cfg.get('task_id', str(round(time.time())))
+        self.cfg = copy.deepcopy(cfg)
+        self.task_id = self.cfg.get('task_id', str(round(time.time())))
         self.gpu_id = self.cfg.get('gpu_id', '0')
-        self.class_names = cfg.class_names
+        self.class_names = self.cfg.class_names
 
-        # os.path.abspath('') = '.'
-        in_dir = cfg.get('in_dir', './in')
-        assert osp.isdir(in_dir)
+        in_dir = self.cfg.in_dir
+        out_dir = self.cfg.out_dir
+        if self.cfg.get('data_dir', None):
+            os.makedirs(self.cfg.in_dir, exist_ok=True)
+            os.makedirs(self.cfg.out_dir, exist_ok=True)
+        else:
+            assert osp.isdir(in_dir)
+            assert out_dir
+            os.makedirs(out_dir, exist_ok=True)
         self.host_in_dir = os.path.abspath(in_dir)
-
-        out_dir = cfg.get('out_dir', './out')
-        assert out_dir
-        os.makedirs(out_dir, exist_ok=True)
         self.host_out_dir = os.path.abspath(out_dir)
 
         self.pretrain_files = []
-        self.pretrain_weights_dir = osp.abspath(cfg.get('pretrain_weights_dir', './pretrain_weights_dir'))
+        self.pretrain_weights_dir = osp.abspath(self.cfg.get('pretrain_weights_dir', './pretrain_weights_dir'))
 
         if osp.isdir(self.pretrain_weights_dir):
             # generate docker image absolute path for pretrained weight files
@@ -59,11 +73,11 @@ class Verifier(unittest.TestCase):
                     self.pretrain_files.append(osp.join('/in/models', osp.relpath(f, start=self.pretrain_weights_dir)))
 
         # ymir env config, affect /in/env.yaml
-        if cfg.get('env_config'):
+        if self.cfg.get('env_config'):
             # support for all-in-one.yaml
             self.env_config = todict(cfg.env_config)
         else:
-            self.env_config_file = cfg.get('env_config_file', './env.yaml')
+            self.env_config_file = self.cfg.get('env_config_file', './env.yaml')
             if osp.exists(self.env_config_file):
                 with open(self.env_config_file, 'r') as fp:
                     self.env_config = yaml.safe_load(fp)
@@ -74,12 +88,12 @@ class Verifier(unittest.TestCase):
         self.docker_out_dir = self.cfg.env_config.output.root_dir  # '/out'
 
         # hyper-parameter config, affect /in/config.yaml
-        if cfg.get('param_config'):
+        if self.cfg.get('param_config'):
             # support for all-in-one.yaml
-            self.param_config = todict(cfg.param_config)
+            self.param_config = todict(self.cfg.param_config)
         else:
             self.param_config = {}
-            test_config_file = cfg.get('param_config_file', './test-config.yaml')
+            test_config_file = self.cfg.get('param_config_file', './test-config.yaml')
             if osp.exists(test_config_file):
                 with open(test_config_file, 'r') as fp:
                     self.param_config = yaml.safe_load(fp)
@@ -195,8 +209,16 @@ class Verifier(unittest.TestCase):
 
         create a new workspace with task_id
 
+        data_dir
+        - in  # self.cfg.data_dir
+            - assets
+            - annotations
+            - train-index.tsv
+            - val-index.tsv
+            - candidate-index.tsv
+
         workspace
-        - in
+        - in  # self.cfg.in_dir
             - assets  # softlink from self.cfg.data_dir + assets
             - models  # softlink from pretrain_weights_dir
             - annotations # softlink from self.cfg.data_dir + anntations
@@ -205,33 +227,40 @@ class Verifier(unittest.TestCase):
             - train-index.tsv # copy from self.cfg.data_dir
             - val-index.tsv # copy from self.cfg.data_dir
             - candidate-index.tsv # copy from self.cfg.data_dir
-        - out
+        - out # self.cfg.out_dir
         """
         # create in, out and subdir
-        self.data_dir = self.cfg.get('data_dir', None) or self.cfg.get('in_dir')
-        self.work_dir = self.cfg.get('work_dir', None) or self.cfg.get('out_dir')
+        self.data_dir = self.cfg.get('data_dir', None)
+        self.work_dir = self.cfg.get('work_dir', None)
 
-        self.cfg.in_dir = osp.join(self.work_dir, self.task_id, task, 'in')
-        self.cfg.out_dir = osp.join(self.work_dir, self.task_id, task, 'out')
-        os.makedirs(self.cfg.in_dir, exist_ok=True)
-        os.makedirs(self.cfg.out_dir, exist_ok=True)
         volumes = [f'-v{osp.abspath(self.cfg.in_dir)}:/in:ro', f'-v{osp.abspath(self.cfg.out_dir)}:/out:rw']
 
-        basename_assets_dir = osp.relpath(self.cfg.env_config.input.assets_dir, start=self.docker_in_dir)
-        basename_anntations_dir = osp.relpath(self.cfg.env_config.input.annotations_dir, start=self.docker_in_dir)
-        basename_models_dir = osp.relpath(self.cfg.env_config.input.models_dir, start=self.docker_in_dir)
-        for subdir in [basename_assets_dir, basename_anntations_dir]:
-            xxx_dir = osp.join(self.data_dir, subdir)
-            os.symlink(osp.abspath(xxx_dir), osp.join(osp.abspath(self.cfg.in_dir), subdir))
-            append_binds(volumes, xxx_dir)
+        if self.data_dir is not None:
+            basename_assets_dir = osp.relpath(self.cfg.env_config.input.assets_dir, start=self.docker_in_dir)
+            basename_anntations_dir = osp.relpath(self.cfg.env_config.input.annotations_dir, start=self.docker_in_dir)
+            for subdir in [basename_assets_dir, basename_anntations_dir]:
+                src_dir = osp.join(osp.abspath(self.data_dir), subdir)
+                des_dir = osp.join(osp.abspath(self.cfg.in_dir), subdir)
+                if osp.exists(des_dir):
+                    warnings.warn(f'{des_dir} already exist, not needs to create soft link')
+                else:
+                    os.symlink(src_dir, des_dir)
+                append_binds(volumes, src_dir)
 
         self.cfg.pretrain_weights_dir = pretrain_weights_dir
         if task in ['mining', 'infer']:
             assert osp.isdir(pretrain_weights_dir)
 
         if pretrain_weights_dir:
-            os.symlink(osp.abspath(pretrain_weights_dir), osp.join(osp.abspath(self.cfg.in_dir), basename_models_dir))
-            append_binds(volumes, pretrain_weights_dir)
+            basename_models_dir = osp.relpath(self.cfg.env_config.input.models_dir, start=self.docker_in_dir)
+
+            src_dir = osp.abspath(pretrain_weights_dir)
+            des_dir = osp.join(osp.abspath(self.cfg.in_dir), basename_models_dir)
+            if osp.exists(des_dir):
+                warnings.warn(f'{des_dir} already exist, not needs to create soft link')
+            else:
+                os.symlink(src_dir, des_dir)
+            append_binds(volumes, src_dir)
 
         # generate config.yaml and env.yaml
         in_config_file = osp.join(self.cfg.in_dir, 'config.yaml')
@@ -240,18 +269,19 @@ class Verifier(unittest.TestCase):
         self.generate_env_yaml(task, env_config_file)
 
         # copy train-index.tsv, val-index.tsv, candidate-index.tsv
-        if task in ['training']:
-            train_index_file = self.cfg.env_config.input.training_index_file
-            val_index_file = self.cfg.env_config.input.val_index_file
+        if self.data_dir is not None:
+            if task in ['training']:
+                train_index_file = self.cfg.env_config.input.training_index_file
+                val_index_file = self.cfg.env_config.input.val_index_file
 
-            host_train_index_file = train_index_file.replace(self.docker_in_dir, self.data_dir)
-            host_val_index_file = val_index_file.replace(self.docker_in_dir, self.data_dir)
-            shutil.copy(host_train_index_file, self.cfg.in_dir)
-            shutil.copy(host_val_index_file, self.cfg.in_dir)
-        else:
-            candidate_index_file = self.cfg.env_config.input.candidate_index_file
-            host_candidate_index_file = candidate_index_file.replace(self.docker_in_dir, self.data_dir)
-            shutil.copy(host_candidate_index_file, self.cfg.in_dir)
+                host_train_index_file = train_index_file.replace(self.docker_in_dir, self.data_dir)
+                host_val_index_file = val_index_file.replace(self.docker_in_dir, self.data_dir)
+                shutil.copy(host_train_index_file, self.cfg.in_dir)
+                shutil.copy(host_val_index_file, self.cfg.in_dir)
+            else:
+                candidate_index_file = self.cfg.env_config.input.candidate_index_file
+                host_candidate_index_file = candidate_index_file.replace(self.docker_in_dir, self.data_dir)
+                shutil.copy(host_candidate_index_file, self.cfg.in_dir)
         return volumes
 
     def generate_hyperparameter_yaml(self, task: str, in_config_file: str) -> None:
@@ -311,23 +341,14 @@ class Verifier(unittest.TestCase):
         task_id = self.task_id
 
         if task == 'training':
-            task_config = dict(run_training=True,
-                               run_mining=False,
-                               run_infer=False,
-                               task_id=task_id)
+            task_config = dict(run_training=True, run_mining=False, run_infer=False, task_id=task_id)
             env_config['input']['candidate_index_file'] = ''
         elif task == 'infer':
-            task_config = dict(run_training=False,
-                               run_mining=False,
-                               run_infer=True,
-                               task_id=task_id)
+            task_config = dict(run_training=False, run_mining=False, run_infer=True, task_id=task_id)
             env_config['input']['training_index_file'] = ''
             env_config['input']['val_index_file'] = ''
         elif task == 'mining':
-            task_config = dict(run_training=False,
-                               run_mining=True,
-                               run_infer=False,
-                               task_id=task_id)
+            task_config = dict(run_training=False, run_mining=True, run_infer=False, task_id=task_id)
             env_config['input']['training_index_file'] = ''
             env_config['input']['val_index_file'] = ''
         else:
@@ -338,6 +359,9 @@ class Verifier(unittest.TestCase):
             yaml.dump(env_config, fw)
 
     def run_task(self, task: str, pretrain_weights_dir: str = ''):
+        print(f'run {task} task {self.task_id} with follow config')
+        pprint(self.cfg)
+
         # create workspace in self.cfg.in_dir
         volumes = self.create_workspace(task, pretrain_weights_dir)
 
