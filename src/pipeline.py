@@ -92,10 +92,10 @@ class PipeLine(object):
         instance_segmantation: object_type = 4
         """
         command = 'cat /img-man/manifest.yaml'
-        output = run_docker_cmd(self.docker_image, command.split())
         try:
+            output = run_docker_cmd(self.docker_image, command.split())
             manifest = yaml.safe_load(output)
-        except Exception:
+        except:
             return 2
 
         return manifest['object_type']

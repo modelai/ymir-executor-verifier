@@ -19,8 +19,7 @@ def run_task(cfg: edict, task: str):
     if osp.exists(result_file):
         warnings.warn('result file {result_file} exist, auto remove it')
         os.remove(result_file)
-    verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
-    print_error(verify_result)
+    v.verify_task(docker_image_name=docker_image_name, task=task)
 
 
 class TestTraining(unittest.TestCase):
