@@ -5,7 +5,6 @@ from typing import List
 import yaml
 from easydict import EasyDict as edict
 
-from .utils import run_docker_cmd
 from .verifier_detection import VerifierDetection
 
 
@@ -14,27 +13,6 @@ class VerifierSegmentation(VerifierDetection):
     def __init__(self, cfg: edict):
         super().__init__(cfg)
         self.supported_algorithms = ['segmentation']
-
-    def verify_object_type(self, docker_image_name) -> dict:
-        """
-        check the object_type in /img-man/manifest.yaml
-        object detection: object_type = 2
-        semantic segmenation: object_type = 3
-        instance_segmantation: object_type = 4
-        """
-
-        command = 'cat /img-man/manifest.yaml'
-        output = run_docker_cmd(docker_image_name, command.split())
-        manifest = yaml.safe_load(output)
-
-        self.object_type = manifest['object_type']
-        print(f'obtain image object type = {self.object_type}')
-        assert manifest['object_type'] in [3, 4], f'unknown object type {manifest} for {docker_image_name}'
-        return manifest
-
-    def verify_task(self, docker_image_name: str, task: str) -> None:
-        self.verify_object_type(docker_image_name)
-        super().verify_task(docker_image_name, task)
 
     def verify_training_result_file(self, training_result_file) -> None:
         with open(training_result_file, 'r') as fp:
@@ -104,8 +82,10 @@ class VerifierSegmentation(VerifierDetection):
         with open(task_result_file, 'r') as f:
             results = json.loads(f.read())
 
-        for ann in results['anns']:
+        for ann in results['annotations']:
             self.assertTrue('segmentation' in ann)
+            self.assertTrue('size' in ann['segmentation'])
+            self.assertTrue('counts' in ann['segmentation'])
 
         # check process monitor file
         docker_monitor_file = ymir_env['output']['monitor_file']

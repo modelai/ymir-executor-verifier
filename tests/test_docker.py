@@ -17,10 +17,13 @@ class TestDocker(unittest.TestCase):
         self.docker_image_name = 'ubuntu:18.04'
 
     def test_multiple_mount(self):
+        """use py-docker, mount multiple times will cause error
+        """
         target_image = self.client.images.get(self.docker_image_name)
 
         command = 'ls /models'
-        volumes = [f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw', f'{self.ymir_model_dir}:/models:ro']
+        volumes = [f'{self.ymir_in_dir}:/in:ro', f'{self.ymir_out_dir}:/out:rw',
+                   f'{self.ymir_model_dir}:/models:ro']  # not support mount to /in/models
 
         for detach in [True, False]:
             if detach:
@@ -44,17 +47,15 @@ class TestDocker(unittest.TestCase):
                 container.wait()
             else:
                 print('this task may take long time, view `docker ps` and `docker logs -f xxx` for process')
-                run_result = self.client.containers.run(
-                    image=target_image,
-                    command=command,
-                    runtime='nvidia',
-                    auto_remove=True,
-                    volumes=volumes,
-                    environment=['YMIR_VERSION=1.1.0'],  # support for ymir1.1.0/1.2.0/1.3.0/2.0.0
-                    shm_size='64G',
-                    detach=detach,
-                    stderr=True,
-                    stdout=True)
+                run_result = self.client.containers.run(image=target_image,
+                                                        command=command,
+                                                        runtime='nvidia',
+                                                        auto_remove=True,
+                                                        volumes=volumes,
+                                                        shm_size='64G',
+                                                        detach=detach,
+                                                        stderr=True,
+                                                        stdout=True)
                 print(run_result.decode('utf-8'))
 
         self.assertTrue(True)

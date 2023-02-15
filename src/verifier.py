@@ -251,7 +251,7 @@ class Verifier(unittest.TestCase):
         if task in ['mining', 'infer']:
             assert osp.isdir(pretrain_weights_dir)
 
-        if pretrain_weights_dir:
+        if pretrain_weights_dir and osp.isdir(pretrain_weights_dir):
             basename_models_dir = osp.relpath(self.cfg.env_config.input.models_dir, start=self.docker_in_dir)
 
             src_dir = osp.abspath(pretrain_weights_dir)
