@@ -97,7 +97,7 @@ class PipeLine(object):
         try:
             output = run_docker_cmd(self.docker_image, command.split())
             manifest = yaml.safe_load(output)
-        except Exception:
+        except:
             return 2
 
         return manifest['object_type']
