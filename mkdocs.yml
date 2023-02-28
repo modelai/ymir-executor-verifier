@@ -24,3 +24,6 @@ nav:
   - 基本介绍:
     - overview/introduction.md
     - overview/quick_start.md
+    - overview/config.md
+    - overview/dataset.md
+    - overview/framework.md
