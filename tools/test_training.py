@@ -1,33 +1,19 @@
-import os
 import unittest
-from pprint import pprint
 
 import yaml
 from easydict import EasyDict as edict
+from src.pipeline import PipeLine
 
-from src.verifier_detection import VerifierDetection
-from src.utils import print_error
 
 class TestTraining(unittest.TestCase):
+
     def test_main(self):
-        cfg = edict()
-        cfg.in_dir = 'tests/data/voc_dog/in'
-        cfg.out_dir = 'tests/data/voc_dog/out'
-        cfg.pretrain_weights_dir = 'tests/pretrain_weights_dir'
-        cfg.env_config_file = 'tests/configs/env.yaml'
-        cfg.param_config_file = 'tests/configs/test-config.yaml'
-        cfg.class_names = ['dog']
-
-        v = VerifierDetection(cfg)
-        with open('ymir_docker_images.txt', 'r') as fp:
-            lines = fp.readlines()
-
-        for line in lines:
-            docker_image_name = line.strip()
-
-            for task in ['training']:
-                verify_result = v.verify_task(docker_image_name=docker_image_name, task=task, detach=True)
-                print_error(verify_result)
+        config_file = 'tests/configs/all-in-one.yaml'
+        with open(config_file, 'r') as fp:
+            cfg = edict(yaml.safe_load(fp))
+        cfg.tasks = ['training']
+        v = PipeLine(cfg)
+        v.run()
 
 
 if __name__ == '__main__':

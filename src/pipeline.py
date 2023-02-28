@@ -33,8 +33,10 @@ class PipeLine(object):
         self.work_dir = self.cfg.work_dir
         self.class_names = self.cfg.class_names
         self.gpu_id = self.cfg.get('gpu_id', '0')
+
         self.param_config = self.cfg.param_config  # hyper-parameter config
         self.env_config = self.cfg.env_config  # ymir enviroment config
+
         self.docker_in_dir = self.cfg.env_config.input.root_dir  # '/in'
         self.docker_out_dir = self.cfg.env_config.output.root_dir  # '/out'
         self.docker_image = self.cfg.docker_image
@@ -92,8 +94,8 @@ class PipeLine(object):
         instance_segmantation: object_type = 4
         """
         command = 'cat /img-man/manifest.yaml'
-        output = run_docker_cmd(self.docker_image, command.split())
         try:
+            output = run_docker_cmd(self.docker_image, command.split())
             manifest = yaml.safe_load(output)
         except Exception:
             return 2

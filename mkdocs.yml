@@ -1,0 +1,26 @@
+site_name: Ymir-Executor Documence
+theme:
+  name: readthedocs
+  highlightjs: true
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        # See: https://mkdocstrings.github.io/python/usage/
+        python:
+          options:
+            docstring_style: numpy
+      # watch:
+      #   - seg-semantic-demo-tmi.app.start
+  - include_dir_to_nav
+markdown_extensions:
+  - markdown_include.include:
+      base_path: .
+  - admonition
+  - toc:
+      permalink: "#"
+#  - sane_lists
+nav:
+  - 基本介绍:
+    - overview/introduction.md
+    - overview/quick_start.md

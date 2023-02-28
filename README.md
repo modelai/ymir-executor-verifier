@@ -12,6 +12,7 @@ check docker image for ymir
 ```
 git clone https://github.com/modelai/ymir-executor-verifier.git
 cd ymir-executor-verifier
+pip install -e .
 sudo apt install wget unzip
 bash start.sh
 ```
@@ -35,11 +36,11 @@ pip3 install -r requirements.txt
 
 3. run your ymir docker images
 
-use `youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi` as example
+use `youdaoyzbx/ymir-executor:ymir2.0.0-yolov5-cu111-tmi` as example
 ```
-docker pull youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi
+docker pull youdaoyzbx/ymir-executor:ymir2.0.0-yolov5-cu111-tmi
 
-echo "youdaoyzbx/ymir-executor:ymir1.1.0-yolov5-cu111-tmi" > ymir_docker_images.txt
+echo "youdaoyzbx/ymir-executor:ymir2.0.0-yolov5-cu111-tmi" > ymir_docker_images.txt
 python3 tools/test_training.py
 ```
 
@@ -48,8 +49,6 @@ python3 tools/test_training.py
 view `tests/configs/all-in-one.yaml` for example
 
 ```
-pip install "git+https://github.com/modelai/ymir-executor-verifier.git"
-
 ymir-verifier --help
 ymir-verifier --config tests/configs/all-in-one.yaml
 ```
@@ -61,31 +60,3 @@ view [docker image debug](https://github.com/modelai/ymir-executor-fork/blob/ymi
 ```
 docker run -it --gpus all --shm-size 128G -v $PWD/tests/data/voc_dog/in:/in -v $PWD/tests/data/voc_dog/out:/out -v $HOME/code:/code youdaoyzbx/ymir-executor:ymir2.0.0-yolov5-cu111-tmi bash
 ```
-
-## training
-- training-template.yaml
-```
-# sample hyper-parameter
-batch_size_per_gpu: 8
-workers_per_gpu: 4
-shm_size_per_gpu: 12G
-image_size: 640
-export_format: ark:raw
-ymir_saved_file_patterns: []
-```
-- monitor process
-- tensorboard log
-- result file with model weight and map
-- load checkpoint
-- resume checkpoint
-- custom saved files, support python regular expression
-
-## infer
-- infer-template.yaml
-- monitor process
-- result file
-
-## mining
-- mining-template.yaml
-- monitor process
-- result file
